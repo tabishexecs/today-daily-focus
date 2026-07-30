@@ -14,4 +14,32 @@ export const dateStr = (now = new Date()): string =>
 export const sidePad = (compact: boolean): string =>
   compact ? '22px' : 'clamp(46px,7vw,120px)';
 
-export const EMPTY_LABELS = ['THE FIRST THING', 'AND THEN', 'ONE LAST THING'];
+const ROMAN: readonly [number, string][] = [
+  [1000, 'M'],
+  [900, 'CM'],
+  [500, 'D'],
+  [400, 'CD'],
+  [100, 'C'],
+  [90, 'XC'],
+  [50, 'L'],
+  [40, 'XL'],
+  [10, 'X'],
+  [9, 'IX'],
+  [5, 'V'],
+  [4, 'IV'],
+  [1, 'I'],
+];
+
+/** Roman numeral for a positive integer; empty string for anything below 1. */
+export const roman = (n: number): string => {
+  let left = Math.floor(n);
+  if (left < 1) return '';
+  let out = '';
+  for (const [value, glyph] of ROMAN) {
+    while (left >= value) {
+      out += glyph;
+      left -= value;
+    }
+  }
+  return out;
+};

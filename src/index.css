@@ -57,17 +57,21 @@ input::placeholder {
 }
 
 /* Hover affordances that can't live in inline styles */
-[data-qrow]:hover [data-qdel] {
+[data-taskrow]:hover [data-taskplay],
+[data-taskrow]:hover [data-taskdel] {
   opacity: 1 !important;
 }
-[data-qdel]:hover {
-  color: var(--primary);
-}
-[data-taskrow]:hover [data-taskplay] {
-  opacity: 1 !important;
-}
-[data-taskplay]:hover {
+[data-taskplay]:hover,
+[data-taskdel]:hover {
   color: var(--primary) !important;
+}
+
+/* The task stream scrolls, but a scrollbar would fight the fade. */
+[data-stream] {
+  scrollbar-width: none;
+}
+[data-stream]::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes settle {

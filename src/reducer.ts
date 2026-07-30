@@ -1,28 +1,15 @@
 import { BREAK_TOTAL, FOCUS_TOTAL } from './types';
-import type { AppState, FocusPhase, QueueItem, Task } from './types';
+import type { AppState, FocusPhase, Task } from './types';
 
 export type Action =
-  | { type: 'START_DRAG'; item: QueueItem; x: number; y: number }
-  | { type: 'DRAG_MOVE'; x: number; y: number; overSlot: number | null }
-  | { type: 'DROP' }
-  | { type: 'CANCEL_DRAG' }
-  | { type: 'CLEAR_JUST_PLACED'; index: number }
-  | { type: 'SET_LOCKING' }
-  | { type: 'FINISH_LOCK' }
-  | { type: 'STRIKE'; index: number }
-  | { type: 'COMPLETE'; index: number }
-  | { type: 'WIN' }
-  | { type: 'END_ROLL' }
-  | { type: 'NEW_DAY'; date: string }
+  | { type: 'ADD_TASK'; id: string; text: string }
+  | { type: 'REMOVE_TASK'; id: string }
+  | { type: 'STRIKE'; id: string }
+  | { type: 'COMPLETE'; id: string }
   | { type: 'OPEN_CAPTURE' }
   | { type: 'CLOSE_CAPTURE' }
   | { type: 'SET_CAPTURE_TEXT'; text: string }
-  | { type: 'ADD_QUEUE'; id: string; text: string }
-  | { type: 'REMOVE_QUEUE'; id: string }
-  | { type: 'OPEN_QUEUE' }
-  | { type: 'CLOSE_QUEUE' }
-  | { type: 'TOGGLE_QUEUE' }
-  | { type: 'ENTER_FOCUS'; index: number }
+  | { type: 'ENTER_FOCUS'; id: string }
   | { type: 'EXIT_FOCUS' }
   | { type: 'FOCUS_TOGGLE' }
   | { type: 'FOCUS_RESET' }
@@ -31,81 +18,37 @@ export type Action =
 
 const currentTotal = (phase: FocusPhase) => (phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL);
 
+const patch = (tasks: Task[], id: string, fn: (t: Task) => Task) =>
+  tasks.map((t) => (t.id === id ? fn(t) : t));
+
 export function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case 'START_DRAG':
-      if (state.dayLocked) return state;
-      return { ...state, drag: { item: action.item, x: action.x, y: action.y }, queueDim: true, overSlot: null };
-
-    case 'DRAG_MOVE':
-      if (!state.drag) return state;
-      return { ...state, drag: { ...state.drag, x: action.x, y: action.y }, overSlot: action.overSlot };
-
-    case 'DROP': {
-      const { drag, overSlot, slots, queue, dayLocked } = state;
-      if (drag && overSlot != null && !slots[overSlot] && !dayLocked) {
-        const ns = slots.slice();
-        ns[overSlot] = { id: drag.item.id, text: drag.item.text, done: false, striking: false, justPlaced: true };
-        const nq = queue.filter((q) => q.id !== drag.item.id);
-        return { ...state, slots: ns, queue: nq, drag: null, queueDim: false, overSlot: null };
-      }
-      return { ...state, drag: null, queueDim: false, overSlot: null };
-    }
-
-    case 'CANCEL_DRAG':
-      return { ...state, drag: null, queueDim: false, overSlot: null };
-
-    case 'CLEAR_JUST_PLACED': {
-      const s = state.slots[action.index];
-      if (!s) return state;
-      const ns = state.slots.slice();
-      ns[action.index] = { ...s, justPlaced: false };
-      return { ...state, slots: ns };
-    }
-
-    case 'SET_LOCKING':
-      return { ...state, locking: true };
-
-    case 'FINISH_LOCK':
-      return { ...state, dayLocked: true, locking: false, queueOpen: false };
-
-    case 'STRIKE': {
-      const s = state.slots[action.index];
-      if (!s || s.done || s.striking) return state;
-      const ns = state.slots.slice();
-      ns[action.index] = { ...s, striking: true };
-      return { ...state, slots: ns };
-    }
-
-    case 'COMPLETE': {
-      const s = state.slots[action.index];
-      if (!s) return state;
-      const ns = state.slots.slice();
-      ns[action.index] = { ...s, striking: false, done: true };
-      return { ...state, slots: ns };
-    }
-
-    case 'WIN':
-      return { ...state, dayWon: true, rolling: true, dayNumber: state.dayNumber + 1 };
-
-    case 'END_ROLL':
-      return { ...state, rolling: false };
-
-    case 'NEW_DAY': {
-      const back: QueueItem[] = state.slots
-        .filter((s): s is Task => !!s && !s.done)
-        .map((s) => ({ id: s.id, text: s.text }));
+    case 'ADD_TASK':
       return {
         ...state,
-        slots: [null, null, null],
-        queue: [...state.queue, ...back],
-        dayLocked: false,
-        locking: false,
-        dayWon: false,
-        queueOpen: !state.compact,
-        dayDate: action.date,
+        tasks: [{ id: action.id, text: action.text, done: false, striking: false }, ...state.tasks],
+        captureText: '',
+        captureOpen: false,
       };
+
+    case 'REMOVE_TASK':
+      return {
+        ...state,
+        tasks: state.tasks.filter((t) => t.id !== action.id),
+        focusId: state.focusId === action.id ? null : state.focusId,
+      };
+
+    case 'STRIKE': {
+      const t = state.tasks.find((x) => x.id === action.id);
+      if (!t || t.done || t.striking) return state;
+      return { ...state, tasks: patch(state.tasks, action.id, (x) => ({ ...x, striking: true })) };
     }
+
+    case 'COMPLETE':
+      return {
+        ...state,
+        tasks: patch(state.tasks, action.id, (x) => ({ ...x, striking: false, done: true })),
+      };
 
     case 'OPEN_CAPTURE':
       return { ...state, captureOpen: true };
@@ -114,46 +57,27 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_CAPTURE_TEXT':
       return { ...state, captureText: action.text };
 
-    case 'ADD_QUEUE':
-      return {
-        ...state,
-        queue: [{ id: action.id, text: action.text }, ...state.queue],
-        captureText: '',
-        captureOpen: false,
-      };
-
-    case 'REMOVE_QUEUE':
-      return { ...state, queue: state.queue.filter((q) => q.id !== action.id) };
-
-    case 'OPEN_QUEUE':
-      return { ...state, queueOpen: true };
-    case 'CLOSE_QUEUE':
-      return { ...state, queueOpen: false };
-    case 'TOGGLE_QUEUE':
-      return { ...state, queueOpen: !state.queueOpen };
-
     case 'ENTER_FOCUS': {
-      const s = state.slots[action.index];
-      if (!s || s.done) return state;
+      const t = state.tasks.find((x) => x.id === action.id);
+      if (!t || t.done) return state;
       return {
         ...state,
-        focusIndex: action.index,
+        focusId: action.id,
         focusPhase: 'focus',
         focusLeft: FOCUS_TOTAL,
         focusRunning: true,
         captureOpen: false,
-        queueOpen: false,
       };
     }
     case 'EXIT_FOCUS':
-      return { ...state, focusIndex: null, focusRunning: false };
+      return { ...state, focusId: null, focusRunning: false };
     case 'FOCUS_TOGGLE':
       return { ...state, focusRunning: !state.focusRunning };
     case 'FOCUS_RESET':
       return { ...state, focusLeft: currentTotal(state.focusPhase), focusRunning: false };
 
     case 'TICK': {
-      if (state.focusIndex == null || !state.focusRunning) return state;
+      if (state.focusId == null || !state.focusRunning) return state;
       if (state.focusLeft > 1) return { ...state, focusLeft: state.focusLeft - 1 };
       const nextPhase: FocusPhase = state.focusPhase === 'focus' ? 'break' : 'focus';
       return { ...state, focusPhase: nextPhase, focusLeft: currentTotal(nextPhase), focusRunning: true };

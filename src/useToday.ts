@@ -3,7 +3,14 @@ import { reducer } from './reducer';
 import { FOCUS_TOTAL } from './types';
 import type { AppState, Task } from './types';
 
-const STORAGE_KEY = 'today.v1';
+// v2 dropped the slots/queue split for a single stream; v1 payloads are not read.
+const STORAGE_KEY = 'today.v2';
+/**
+ * Which task sat at the centre of the band when we last stopped scrolling. Stored as an id,
+ * not a pixel offset, so it survives a breakpoint change and keeps pointing at the same task
+ * when work is added above it. Its own key, so scrolling never rewrites the task list.
+ */
+const ANCHOR_KEY = 'today.v2.anchor';
 
 const SEED = [
   'Ship the billing migration',
@@ -16,81 +23,48 @@ const SEED = [
   'Expense the conference tickets',
 ];
 
-const todayStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const seedTasks = (): Task[] =>
+  SEED.map((text, i) => ({ id: 't' + i, text, done: false, striking: false }));
 
-interface Persisted {
-  dayNumber: number;
-  dayDate: string;
-  slots: (Task | null)[];
-  queue: { id: string; text: string }[];
-  dayLocked: boolean;
-  dayWon: boolean;
-}
-
-function loadPersisted(): Persisted | null {
+function loadTasks(): Task[] | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as Persisted;
+    const parsed = JSON.parse(raw) as { tasks?: Task[] };
+    return Array.isArray(parsed.tasks) ? parsed.tasks : null;
   } catch {
     return null;
   }
 }
 
-function createInitialState(): AppState {
-  const compact = typeof window !== 'undefined' && window.innerWidth < 720;
-  const saved = loadPersisted();
-  const today = todayStr();
-
-  let dayNumber = 14;
-  let dayDate = today;
-  let slots: (Task | null)[] = [null, null, null];
-  let queue = SEED.map((t, i) => ({ id: 'q' + i, text: t }));
-  let dayLocked = false;
-  let dayWon = false;
-
-  if (saved) {
-    dayNumber = saved.dayNumber;
-    dayDate = saved.dayDate;
-    queue = saved.queue;
-    if (saved.dayDate === today) {
-      // Same day — restore where we left off.
-      slots = saved.slots;
-      dayLocked = saved.dayLocked;
-      dayWon = saved.dayWon;
-    } else {
-      // Date rolled over — carry unfinished tasks back to the queue, fresh day.
-      const back = (saved.slots || [])
-        .filter((s): s is Task => !!s && !s.done)
-        .map((s) => ({ id: s.id, text: s.text }));
-      queue = [...saved.queue, ...back];
-      dayDate = today;
-    }
+function readAnchor(): string | null {
+  try {
+    return localStorage.getItem(ANCHOR_KEY);
+  } catch {
+    return null;
   }
+}
 
+/** Next free numeric id suffix, so reloading can't mint an id a saved task already owns. */
+function nextId(tasks: Task[]): number {
+  let max = -1;
+  for (const t of tasks) {
+    const m = /^t(\d+)$/.exec(t.id);
+    if (m) max = Math.max(max, +m[1]);
+  }
+  return max + 1;
+}
+
+function createInitialState(): AppState {
   return {
-    dayNumber,
-    dayDate,
-    rolling: false,
-    slots,
-    queue,
-    queueOpen: !compact,
-    dayLocked,
-    locking: false,
-    dayWon,
+    tasks: loadTasks() ?? seedTasks(),
     captureOpen: false,
     captureText: '',
-    drag: null,
-    overSlot: null,
-    queueDim: false,
-    focusIndex: null,
+    focusId: null,
     focusRunning: false,
     focusPhase: 'focus',
     focusLeft: FOCUS_TOTAL,
-    compact,
+    compact: typeof window !== 'undefined' && window.innerWidth < 720,
   };
 }
 
@@ -102,66 +76,43 @@ export function useToday() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const nid = useRef(200);
+  const nid = useRef(nextId(state.tasks));
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Read once: after mount the stream owns the live scroll position.
+  const initialAnchorId = useRef(readAnchor()).current;
 
   // --- Persistence ---
   useEffect(() => {
-    const { dayNumber, dayDate, slots, queue, dayLocked, dayWon } = state;
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ dayNumber, dayDate, slots, queue, dayLocked, dayWon }),
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks: state.tasks }));
     } catch {
       /* ignore quota / privacy-mode errors */
     }
-  }, [state.dayNumber, state.dayDate, state.slots, state.queue, state.dayLocked, state.dayWon]);
+  }, [state.tasks]);
 
-  // --- Multi-step orchestrations (timeouts live here, not in the reducer) ---
-  const win = useCallback(() => {
-    dispatch({ type: 'WIN' });
-    setTimeout(() => dispatch({ type: 'END_ROLL' }), 680);
-  }, []);
-
-  const complete = useCallback(
-    (i: number) => {
-      const s = stateRef.current.slots[i];
-      if (!s || s.done || s.striking) return;
-      dispatch({ type: 'STRIKE', index: i });
-      setTimeout(() => {
-        dispatch({ type: 'COMPLETE', index: i });
-        const after = stateRef.current.slots.map((x, idx) =>
-          idx === i && x ? { ...x, done: true } : x,
-        );
-        if (after.every((x) => x && x.done)) setTimeout(() => win(), 380);
-      }, 520);
-    },
-    [win],
-  );
-
-  const drop = useCallback(() => {
-    const { drag, overSlot, slots, dayLocked } = stateRef.current;
-    if (drag && overSlot != null && !slots[overSlot] && !dayLocked) {
-      const target = overSlot;
-      const filled = slots.filter(Boolean).length + 1;
-      dispatch({ type: 'DROP' });
-      setTimeout(() => dispatch({ type: 'CLEAR_JUST_PLACED', index: target }), 560);
-      if (filled === 3) {
-        dispatch({ type: 'SET_LOCKING' });
-        setTimeout(() => dispatch({ type: 'FINISH_LOCK' }), 720);
-      }
-    } else {
-      dispatch({ type: 'CANCEL_DRAG' });
+  const saveAnchor = useCallback((id: string | null) => {
+    try {
+      if (id) localStorage.setItem(ANCHOR_KEY, id);
+      else localStorage.removeItem(ANCHOR_KEY);
+    } catch {
+      /* ignore quota / privacy-mode errors */
     }
   }, []);
 
-  const enterFocus = useCallback((i: number) => dispatch({ type: 'ENTER_FOCUS', index: i }), []);
+  // --- Multi-step orchestrations (timeouts live here, not in the reducer) ---
+  const complete = useCallback((id: string) => {
+    const t = stateRef.current.tasks.find((x) => x.id === id);
+    if (!t || t.done || t.striking) return;
+    dispatch({ type: 'STRIKE', id });
+    setTimeout(() => dispatch({ type: 'COMPLETE', id }), 520);
+  }, []);
+
+  const enterFocus = useCallback((id: string) => dispatch({ type: 'ENTER_FOCUS', id }), []);
 
   const focusComplete = useCallback(() => {
-    const i = stateRef.current.focusIndex;
+    const id = stateRef.current.focusId;
     dispatch({ type: 'EXIT_FOCUS' });
-    if (i != null) complete(i);
+    if (id != null) complete(id);
   }, [complete]);
 
   const openCapture = useCallback(() => {
@@ -176,41 +127,15 @@ export function useToday() {
         dispatch({ type: 'CLOSE_CAPTURE' });
         return;
       }
-      const id = 'q' + nid.current++;
-      dispatch({ type: 'ADD_QUEUE', id, text: t });
+      dispatch({ type: 'ADD_TASK', id: 't' + nid.current++, text: t });
     } else if (e.key === 'Escape') {
       dispatch({ type: 'CLOSE_CAPTURE' });
       dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
     }
   }, []);
 
-  const startDrag = useCallback((e: React.PointerEvent, item: { id: string; text: string }) => {
-    if (stateRef.current.dayLocked) return;
-    e.preventDefault();
-    dispatch({ type: 'START_DRAG', item, x: e.clientX, y: e.clientY });
-  }, []);
-
-  // --- Global listeners: pointer drag tracking, outside-click, resize ---
+  // --- Global listeners: outside-click to dismiss capture, resize ---
   useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      if (!stateRef.current.drag) return;
-      e.preventDefault();
-      let over: number | null = null;
-      let n: Element | null = document.elementFromPoint(e.clientX, e.clientY);
-      while (n) {
-        const slotAttr = (n as HTMLElement).dataset?.slot;
-        if (slotAttr != null) {
-          over = +slotAttr;
-          break;
-        }
-        n = n.parentElement;
-      }
-      if (over != null && (stateRef.current.slots[over] || stateRef.current.dayLocked)) over = null;
-      dispatch({ type: 'DRAG_MOVE', x: e.clientX, y: e.clientY, overSlot: over });
-    };
-    const onUp = () => {
-      if (stateRef.current.drag) drop();
-    };
     const onDocDown = (e: PointerEvent) => {
       if (!stateRef.current.captureOpen) return;
       const target = e.target as HTMLElement;
@@ -219,17 +144,13 @@ export function useToday() {
     };
     const onResize = () => dispatch({ type: 'SET_COMPACT', compact: window.innerWidth < 720 });
 
-    document.addEventListener('pointermove', onMove, { passive: false });
-    document.addEventListener('pointerup', onUp);
     document.addEventListener('pointerdown', onDocDown, true);
     window.addEventListener('resize', onResize);
     return () => {
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointerdown', onDocDown, true);
       window.removeEventListener('resize', onResize);
     };
-  }, [drop]);
+  }, []);
 
   // --- Pomodoro interval ---
   useEffect(() => {
@@ -237,33 +158,16 @@ export function useToday() {
     return () => clearInterval(id);
   }, []);
 
-  // --- Date rollover while the app is open ---
-  useEffect(() => {
-    const check = () => {
-      if (stateRef.current.dayDate !== todayStr()) dispatch({ type: 'NEW_DAY', date: todayStr() });
-    };
-    const id = setInterval(check, 60_000);
-    const onVis = () => document.visibilityState === 'visible' && check();
-    document.addEventListener('visibilitychange', onVis);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, []);
-
   const actions = {
     dispatch,
-    startDrag,
     complete,
     enterFocus,
     focusComplete,
     openCapture,
     onCapKey,
     setCaptureText: (text: string) => dispatch({ type: 'SET_CAPTURE_TEXT', text }),
-    removeQueue: (id: string) => dispatch({ type: 'REMOVE_QUEUE', id }),
-    openQueue: () => dispatch({ type: 'OPEN_QUEUE' }),
-    closeQueue: () => dispatch({ type: 'CLOSE_QUEUE' }),
-    toggleQueue: () => dispatch({ type: 'TOGGLE_QUEUE' }),
+    removeTask: (id: string) => dispatch({ type: 'REMOVE_TASK', id }),
+    saveAnchor,
     exitFocus: () => dispatch({ type: 'EXIT_FOCUS' }),
     focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE' }),
     focusReset: () => dispatch({ type: 'FOCUS_RESET' }),
@@ -273,5 +177,5 @@ export function useToday() {
     inputRef,
   };
 
-  return { state, actions };
+  return { state, actions, initialAnchorId };
 }
