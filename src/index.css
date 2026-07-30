@@ -1,0 +1,120 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --bg: #f6f3ee;
+  --ink: #24211c;
+  --muted: #a99f8d;
+  --faint: #c3baa9;
+  --divider-task: #ddd6ca;
+  --divider-queue: #efe9df;
+  --hairline-alt: #e4ddd0;
+  --primary: #0249b4;
+  --strike: #8b0000;
+  --break-art: #b8ad99;
+  --card: #efe9dd;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  font-family: 'DM Mono', 'Helvetica Neue', monospace;
+  font-weight: 400;
+  color: var(--ink);
+}
+
+a {
+  color: var(--ink);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--primary);
+}
+
+input::placeholder {
+  color: var(--faint);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+::selection {
+  background: #e7e0d2;
+}
+
+/* Hover affordances that can't live in inline styles */
+[data-qrow]:hover [data-qdel] {
+  opacity: 1 !important;
+}
+[data-qdel]:hover {
+  color: var(--primary);
+}
+[data-taskrow]:hover [data-taskplay] {
+  opacity: 1 !important;
+}
+[data-taskplay]:hover {
+  color: var(--primary) !important;
+}
+
+@keyframes settle {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+@keyframes rollUp {
+  from {
+    transform: translateY(0.55em);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@keyframes wonIn {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes focusIn {
+  from {
+    opacity: 0;
+    transform: scale(1.015);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
