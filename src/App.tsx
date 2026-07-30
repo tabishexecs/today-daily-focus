@@ -28,19 +28,6 @@ export default function App() {
   const currentTotal = state.focusPhase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL;
   const focusElapsed = currentTotal - state.focusLeft;
 
-  const flyStyle: React.CSSProperties =
-    state.flyGhost?.phase === 'end'
-      ? {
-          transform: 'translate(-40px,54vh) scale(0.55)',
-          opacity: 0,
-          transition: 'transform 580ms cubic-bezier(0.4,0,0.2,1), opacity 580ms ease',
-        }
-      : {
-          transform: 'translate(0,0) scale(1)',
-          opacity: 1,
-          transition: 'transform 580ms cubic-bezier(0.4,0,0.2,1), opacity 580ms ease',
-        };
-
   return (
     <div
       style={{
@@ -132,6 +119,8 @@ export default function App() {
         open={state.captureOpen}
         text={state.captureText}
         sidePad={sidePad}
+        queueOpen={state.queueOpen}
+        compact={c}
         inputRef={actions.inputRef}
         onChange={actions.setCaptureText}
         onKeyDown={actions.onCapKey}
@@ -157,28 +146,6 @@ export default function App() {
           }}
         >
           {state.drag.item.text}
-        </div>
-      )}
-
-      {/* Capture → queue fly ghost */}
-      {state.flyGhost && (
-        <div
-          style={{
-            position: 'fixed',
-            left: sidePad,
-            top: 78,
-            zIndex: 55,
-            background: 'var(--bg)',
-            border: '1px solid var(--ink)',
-            padding: '11px 17px',
-            fontSize: 11,
-            letterSpacing: '0.2em',
-            textTransform: 'uppercase',
-            color: 'var(--ink)',
-            ...flyStyle,
-          }}
-        >
-          {state.flyGhost.text}
         </div>
       )}
 

@@ -19,11 +19,6 @@ export interface DragState {
   y: number;
 }
 
-export interface FlyGhost {
-  text: string;
-  phase: 'start' | 'end';
-}
-
 export interface AppState {
   dayNumber: number;
   dayDate: string; // YYYY-MM-DD the current day was started
@@ -39,7 +34,6 @@ export interface AppState {
   drag: DragState | null;
   overSlot: number | null;
   queueDim: boolean;
-  flyGhost: FlyGhost | null;
   focusIndex: number | null;
   focusRunning: boolean;
   focusPhase: FocusPhase;

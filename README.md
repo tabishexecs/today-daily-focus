@@ -33,7 +33,7 @@ npm run preview  # serve the production build
   from the handoff and live as CSS custom properties in `index.css`. Keyframes `settle`,
   `rollUp`, `wonIn`, `focusIn`, and `pulse` are ported verbatim.
 - **State** is a single `useReducer` mirroring the prototype's logic class. Multi-step
-  sequences that use `setTimeout` (strike → complete → win, drop → lock, capture fly) are
+  sequences that use `setTimeout` (strike → complete → win, drop → lock) are
   orchestrated in `useToday`, keeping the reducer pure. A `stateRef` lets document-level
   listeners read current state without re-subscribing.
 - **Drag-and-drop** uses the prototype's dependency-free approach: pointer events +
