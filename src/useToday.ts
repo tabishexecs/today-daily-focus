@@ -86,7 +86,6 @@ function createInitialState(): AppState {
     drag: null,
     overSlot: null,
     queueDim: false,
-    flyGhost: null,
     focusIndex: null,
     focusRunning: false,
     focusPhase: 'focus',
@@ -178,11 +177,7 @@ export function useToday() {
         return;
       }
       const id = 'q' + nid.current++;
-      dispatch({ type: 'FLY_START', text: t });
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => dispatch({ type: 'FLY_END' })),
-      );
-      setTimeout(() => dispatch({ type: 'FLY_COMMIT', id, text: t }), 580);
+      dispatch({ type: 'ADD_QUEUE', id, text: t });
     } else if (e.key === 'Escape') {
       dispatch({ type: 'CLOSE_CAPTURE' });
       dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });

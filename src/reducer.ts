@@ -17,9 +17,7 @@ export type Action =
   | { type: 'OPEN_CAPTURE' }
   | { type: 'CLOSE_CAPTURE' }
   | { type: 'SET_CAPTURE_TEXT'; text: string }
-  | { type: 'FLY_START'; text: string }
-  | { type: 'FLY_END' }
-  | { type: 'FLY_COMMIT'; id: string; text: string }
+  | { type: 'ADD_QUEUE'; id: string; text: string }
   | { type: 'REMOVE_QUEUE'; id: string }
   | { type: 'OPEN_QUEUE' }
   | { type: 'CLOSE_QUEUE' }
@@ -116,12 +114,13 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'SET_CAPTURE_TEXT':
       return { ...state, captureText: action.text };
 
-    case 'FLY_START':
-      return { ...state, flyGhost: { text: action.text, phase: 'start' }, captureText: '', captureOpen: false };
-    case 'FLY_END':
-      return state.flyGhost ? { ...state, flyGhost: { ...state.flyGhost, phase: 'end' } } : state;
-    case 'FLY_COMMIT':
-      return { ...state, queue: [{ id: action.id, text: action.text }, ...state.queue], flyGhost: null };
+    case 'ADD_QUEUE':
+      return {
+        ...state,
+        queue: [{ id: action.id, text: action.text }, ...state.queue],
+        captureText: '',
+        captureOpen: false,
+      };
 
     case 'REMOVE_QUEUE':
       return { ...state, queue: state.queue.filter((q) => q.id !== action.id) };

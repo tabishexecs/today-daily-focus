@@ -12,6 +12,9 @@
   --strike: #8b0000;
   --break-art: #b8ad99;
   --card: #efe9dd;
+  --surface: #ffffff;
+  --surface-edge: #e6dfd2;
+  --surface-shadow: 0 18px 44px -18px rgba(36, 33, 28, 0.28), 0 2px 6px rgba(36, 33, 28, 0.06);
 }
 
 * {

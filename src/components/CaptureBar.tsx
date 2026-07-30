@@ -4,29 +4,50 @@ interface Props {
   open: boolean;
   text: string;
   sidePad: string;
+  queueOpen: boolean;
+  compact: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
   onChange: (text: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
-export function CaptureBar({ open, text, sidePad, inputRef, onChange, onKeyDown }: Props) {
+export function CaptureBar({
+  open,
+  text,
+  sidePad,
+  queueOpen,
+  compact,
+  inputRef,
+  onChange,
+  onKeyDown,
+}: Props) {
+  // Stay inside the content column: on desktop the queue panel eats 404px on the right.
+  const rightInset = !compact && queueOpen ? `calc(${sidePad} + 404px)` : sidePad;
+
   return (
     <div
       data-capture="1"
       style={{
         position: 'fixed',
-        left: 0,
-        right: 0,
-        bottom: 0,
+        left: sidePad,
+        right: rightInset,
+        bottom: 28,
         zIndex: 45,
-        background: 'var(--bg)',
-        borderTop: '1px solid var(--divider-task)',
-        transform: `translateY(${open ? '0%' : '101%'})`,
-        transition: 'transform 420ms cubic-bezier(0.22,0.61,0.36,1)',
-        padding: `22px ${sidePad}`,
+        maxWidth: 640,
+        margin: '0 auto',
+        background: 'var(--surface)',
+        border: '1px solid var(--surface-edge)',
+        borderRadius: 16,
+        boxShadow: 'var(--surface-shadow)',
+        opacity: open ? 1 : 0,
+        pointerEvents: open ? 'auto' : 'none',
+        transform: `translateY(${open ? '0' : '18px'}) scale(${open ? 1 : 0.985})`,
+        transition:
+          'transform 420ms cubic-bezier(0.22,0.61,0.36,1), opacity 260ms cubic-bezier(0.22,0.61,0.36,1), right 480ms cubic-bezier(0.22,0.61,0.36,1)',
+        padding: '18px 22px',
         display: 'flex',
         alignItems: 'center',
-        gap: 22,
+        gap: 18,
       }}
     >
       <span
