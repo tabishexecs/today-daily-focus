@@ -1,10 +1,7 @@
 import { dateStr } from '../util';
 
 interface Props {
-  showQueueToggle: boolean;
-  queueCount: number;
   onLogout: () => void;
-  onToggleQueue: () => void;
   onOpenCapture: () => void;
 }
 
@@ -19,9 +16,7 @@ const btn: React.CSSProperties = {
   padding: '8px 4px',
 };
 
-const dot: React.CSSProperties = { fontSize: 11, color: 'var(--muted)' };
-
-export function TopBar({ showQueueToggle, queueCount, onLogout, onToggleQueue, onOpenCapture }: Props) {
+export function TopBar({ onLogout, onOpenCapture }: Props) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
       <div style={{ fontSize: 11, letterSpacing: '0.24em', color: 'var(--ink)' }}>{dateStr()}</div>
@@ -29,15 +24,7 @@ export function TopBar({ showQueueToggle, queueCount, onLogout, onToggleQueue, o
         <button onClick={onLogout} style={{ ...btn, color: 'var(--muted)' }}>
           Log out
         </button>
-        <span style={dot}>·</span>
-        {showQueueToggle && (
-          <>
-            <button onClick={onToggleQueue} style={{ ...btn, color: 'var(--ink)' }}>
-              Queue ({queueCount})
-            </button>
-            <span style={dot}>·</span>
-          </>
-        )}
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>·</span>
         <button onClick={onOpenCapture} style={{ ...btn, color: 'var(--primary)' }}>
           Add work
         </button>

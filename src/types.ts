@@ -3,38 +3,16 @@ export interface Task {
   text: string;
   done: boolean;
   striking: boolean;
-  justPlaced: boolean;
-}
-
-export interface QueueItem {
-  id: string;
-  text: string;
 }
 
 export type FocusPhase = 'focus' | 'break';
 
-export interface DragState {
-  item: QueueItem;
-  x: number;
-  y: number;
-}
-
 export interface AppState {
-  dayNumber: number;
-  dayDate: string; // YYYY-MM-DD the current day was started
-  rolling: boolean;
-  slots: (Task | null)[]; // always length 3
-  queue: QueueItem[];
-  queueOpen: boolean;
-  dayLocked: boolean;
-  locking: boolean;
-  dayWon: boolean;
+  /** Every task, newest first. There is no separate backlog — the stream is the list. */
+  tasks: Task[];
   captureOpen: boolean;
   captureText: string;
-  drag: DragState | null;
-  overSlot: number | null;
-  queueDim: boolean;
-  focusIndex: number | null;
+  focusId: string | null;
   focusRunning: boolean;
   focusPhase: FocusPhase;
   focusLeft: number;

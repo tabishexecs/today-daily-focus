@@ -50,22 +50,3 @@ export function PlayFilledIcon({ size = 13 }: { size?: number }) {
     </svg>
   );
 }
-
-export function CollapseIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="21" y1="4" x2="21" y2="20" />
-      <line x1="3" y1="12" x2="20" y2="12" />
-      <polyline points="13 6 20 12 13 18" />
-    </svg>
-  );
-}
