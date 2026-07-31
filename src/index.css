@@ -42,22 +42,36 @@ body {
   color: var(--ink);
 }
 
-a {
+/* Clerk renders into this document, so bare-element rules below would repaint its card in
+   the product's design. Everything from here to the app rules is fenced out of `.cl-rootBox`
+   (the root element of every Clerk component) so the auth UI keeps Clerk's stock look. */
+
+a:not(.cl-rootBox *) {
   color: var(--ink);
   text-decoration: none;
 }
-a:hover {
+a:not(.cl-rootBox *):hover {
   color: var(--primary);
 }
 
-input::placeholder {
+input:not(.cl-rootBox *)::placeholder {
   color: var(--faint);
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 
-::selection {
+*:not(.cl-rootBox *)::selection {
   background: #e7e0d2;
+}
+
+/* Clerk's `fontFamily` variable defaults to `inherit`, so the DM Mono on `body` would follow
+   it in. Hand the card back a neutral system stack — the stock Clerk look. */
+.cl-rootBox {
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-weight: normal;
+  letter-spacing: normal;
+  text-rendering: auto;
+  color: initial;
 }
 
 /* Hover affordances that can't live in inline styles */

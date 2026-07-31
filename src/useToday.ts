@@ -4,13 +4,15 @@ import { FOCUS_TOTAL } from './types';
 import type { AppState, Task } from './types';
 
 // v2 dropped the slots/queue split for a single stream; v1 payloads are not read.
-const STORAGE_KEY = 'today.v2';
+// Keys are namespaced by Clerk user id, so two accounts on the same browser keep separate
+// streams. Storage is still local — signing in on another device starts from the seed list.
+const storageKey = (userId: string) => `today.v2:${userId}`;
 /**
  * Which task sat at the centre of the band when we last stopped scrolling. Stored as an id,
  * not a pixel offset, so it survives a breakpoint change and keeps pointing at the same task
  * when work is added above it. Its own key, so scrolling never rewrites the task list.
  */
-const ANCHOR_KEY = 'today.v2.anchor';
+const anchorKey = (userId: string) => `today.v2:${userId}.anchor`;
 
 const SEED = [
   'Ship the billing migration',
@@ -26,9 +28,9 @@ const SEED = [
 const seedTasks = (): Task[] =>
   SEED.map((text, i) => ({ id: 't' + i, text, done: false, striking: false }));
 
-function loadTasks(): Task[] | null {
+function loadTasks(userId: string): Task[] | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey(userId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { tasks?: Task[] };
     return Array.isArray(parsed.tasks) ? parsed.tasks : null;
@@ -37,9 +39,9 @@ function loadTasks(): Task[] | null {
   }
 }
 
-function readAnchor(): string | null {
+function readAnchor(userId: string): string | null {
   try {
-    return localStorage.getItem(ANCHOR_KEY);
+    return localStorage.getItem(anchorKey(userId));
   } catch {
     return null;
   }
@@ -55,9 +57,9 @@ function nextId(tasks: Task[]): number {
   return max + 1;
 }
 
-function createInitialState(): AppState {
+function createInitialState(userId: string): AppState {
   return {
-    tasks: loadTasks() ?? seedTasks(),
+    tasks: loadTasks(userId) ?? seedTasks(),
     captureOpen: false,
     captureText: '',
     focusId: null,
@@ -68,8 +70,12 @@ function createInitialState(): AppState {
   };
 }
 
-export function useToday() {
-  const [state, dispatch] = useReducer(reducer, undefined, createInitialState);
+/**
+ * @param userId Clerk user id. The caller remounts this hook's owner on change (via `key`),
+ *   so the lazy init below re-reads the new account's storage instead of carrying state over.
+ */
+export function useToday(userId: string) {
+  const [state, dispatch] = useReducer(reducer, userId, createInitialState);
 
   // Keep a ref to the latest state so document-level listeners and timeouts
   // read current values without re-subscribing.
@@ -79,25 +85,28 @@ export function useToday() {
   const nid = useRef(nextId(state.tasks));
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Read once: after mount the stream owns the live scroll position.
-  const initialAnchorId = useRef(readAnchor()).current;
+  const initialAnchorId = useRef(readAnchor(userId)).current;
 
   // --- Persistence ---
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks: state.tasks }));
+      localStorage.setItem(storageKey(userId), JSON.stringify({ tasks: state.tasks }));
     } catch {
       /* ignore quota / privacy-mode errors */
     }
-  }, [state.tasks]);
+  }, [state.tasks, userId]);
 
-  const saveAnchor = useCallback((id: string | null) => {
-    try {
-      if (id) localStorage.setItem(ANCHOR_KEY, id);
-      else localStorage.removeItem(ANCHOR_KEY);
-    } catch {
-      /* ignore quota / privacy-mode errors */
-    }
-  }, []);
+  const saveAnchor = useCallback(
+    (id: string | null) => {
+      try {
+        if (id) localStorage.setItem(anchorKey(userId), id);
+        else localStorage.removeItem(anchorKey(userId));
+      } catch {
+        /* ignore quota / privacy-mode errors */
+      }
+    },
+    [userId],
+  );
 
   // --- Multi-step orchestrations (timeouts live here, not in the reducer) ---
   const complete = useCallback((id: string) => {
@@ -171,9 +180,6 @@ export function useToday() {
     exitFocus: () => dispatch({ type: 'EXIT_FOCUS' }),
     focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE' }),
     focusReset: () => dispatch({ type: 'FOCUS_RESET' }),
-    logout: () => {
-      /* stub — wire to your real session */
-    },
     inputRef,
   };
 

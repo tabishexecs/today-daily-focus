@@ -16,21 +16,27 @@ below.
 
 ```bash
 npm install
+cp .env.example .env.local   # then paste your Clerk publishable key
 npm run dev      # http://localhost:5173
 npm run build    # type-check + production build to dist/
 npm run preview  # serve the production build
 ```
 
+`VITE_CLERK_PUBLISHABLE_KEY` is required — grab it from the
+[Clerk dashboard](https://dashboard.clerk.com/~/api-keys) (choose **React**). Without it the
+app fails to boot. `.env.local` is gitignored via `*.local`.
+
 ## Structure
 
 | File | Responsibility |
 |---|---|
+| `src/main.tsx` | Mounts the app inside Clerk's `<ClerkProvider>` |
 | `src/types.ts` | Domain types + timer constants (`FOCUS_TOTAL`, `BREAK_TOTAL`) |
 | `src/reducer.ts` | Pure state transitions (all `AppState` changes) |
 | `src/useToday.ts` | Hook: wires the reducer to the Pomodoro timer, capture, outside-click dismissal, and `localStorage` persistence |
 | `src/util.ts` | `MM:SS` formatting, date string, side padding |
-| `src/App.tsx` | Layout + derived view values |
-| `src/components/` | `TopBar`, `TaskStream`, `CaptureBar`, `FocusMode`, `icons` |
+| `src/App.tsx` | Auth gate, then layout + derived view values |
+| `src/components/` | `TopBar`, `TaskStream`, `CaptureBar`, `FocusMode`, `SignInScreen`, `icons` |
 | `src/index.css` | Design tokens (CSS vars), fonts, keyframes, hover affordances |
 
 ## How the stream works
@@ -63,10 +69,11 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
 - **State** is a single `useReducer`. The one multi-step sequence (strike → complete) is
   orchestrated in `useToday` with a `setTimeout`, keeping the reducer pure. A `stateRef` lets
   document-level listeners read current state without re-subscribing.
-- **Persistence**: the task list persists to `localStorage` under `today.v2` as `{ tasks }`.
-  v1 payloads (separate `slots` and `queue`) are deliberately not read — the key was bumped
-  and the seed list repopulates.
-- **Scroll position survives reload** via `today.v2.anchor`, which holds the *id* of the task
+- **Persistence**: the task list persists to `localStorage` under `today.v2:<clerkUserId>` as
+  `{ tasks }`. v1 payloads (separate `slots` and `queue`) are deliberately not read — the key
+  was bumped and the seed list repopulates. Pre-auth `today.v2` payloads are likewise not
+  migrated; the first sign-in starts from the seed list.
+- **Scroll position survives reload** via `today.v2:<clerkUserId>.anchor`, which holds the *id* of the task
   the band was centred on, not a pixel offset — so it restores correctly across a breakpoint
   change and keeps naming the same task when work is added above it. Written on scroll settle
   and whenever the list changes; applied in a `useLayoutEffect` before the first paint, so
@@ -74,7 +81,24 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   and self-heals on the next write.
 - **Capture** floats as a rounded white card above the bottom edge; Enter adds to the top of
   the stream and the stream scrolls up to meet it, Escape or a click outside dismisses.
-- **Log out** is a stub (`actions.logout`) — wire it to your real session.
+- **Auth** is [Clerk](https://clerk.com/docs/react/getting-started/quickstart). `App` gates on
+  `<Show when="signed-in">`; signed-out visitors get `SignInScreen`, which renders the prebuilt
+  `<SignIn withSignUp />` card directly with Clerk's default appearance. **Log out** calls
+  Clerk's `signOut()`.
+- **`withSignUp` is load-bearing.** Without it the card's "Sign up" link follows `signUpUrl`,
+  which defaults to the instance's hosted Account Portal on `accounts.dev` — a different
+  origin, so the user leaves the SPA for a page with its own dashboard-configured theme and no
+  route back. The combined flow keeps sign-up inside this instance. No `path` prop either, so
+  routing stays hash-based and in-app; there is no router here.
+- **Clerk's card is fenced off from the app's CSS.** Clerk renders into this document, so the
+  bare `a` / `input::placeholder` / `::selection` rules in `index.css` would otherwise repaint
+  it in the product's design; each is scoped with `:not(.cl-rootBox *)`. Clerk's `fontFamily`
+  variable defaults to `inherit`, so `.cl-rootBox` also resets typography to a neutral system
+  stack — without that, the card renders in DM Mono. Nothing is passed to `appearance`.
+- **Per-user data**: storage keys are namespaced by Clerk user id, and `Today` is mounted with
+  `key={user.id}` so switching accounts remounts the tree and re-reads that account's storage
+  instead of inheriting the previous user's tasks. There is still no server — the stream does
+  not follow an account to another browser.
 - The top-right primary button reads **"Add work"** and the capture placeholder **"A work for
   later"**, matching the prototype markup and screenshots (the handoff prose called this
   "Capture"; the visual source of truth won).
