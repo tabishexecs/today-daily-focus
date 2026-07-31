@@ -1,3 +1,4 @@
+import { Show, useClerk, useUser } from '@clerk/react';
 import { BREAK_TOTAL, FOCUS_TOTAL } from './types';
 import { useToday } from './useToday';
 import { sidePad as sidePadFn } from './util';
@@ -5,9 +6,31 @@ import { TopBar } from './components/TopBar';
 import { TaskStream } from './components/TaskStream';
 import { CaptureBar } from './components/CaptureBar';
 import { FocusMode } from './components/FocusMode';
+import { SignInScreen } from './components/SignInScreen';
 
 export default function App() {
-  const { state, actions, initialAnchorId } = useToday();
+  return (
+    <>
+      <Show when="signed-out">
+        <SignInScreen />
+      </Show>
+      <Show when="signed-in">
+        <SignedIn />
+      </Show>
+    </>
+  );
+}
+
+function SignedIn() {
+  const { user } = useUser();
+  // Keyed on the user id so switching accounts remounts Today and re-reads that
+  // account's storage, rather than inheriting the previous user's tasks.
+  return user ? <Today key={user.id} userId={user.id} /> : null;
+}
+
+function Today({ userId }: { userId: string }) {
+  const { state, actions, initialAnchorId } = useToday(userId);
+  const { signOut } = useClerk();
   const c = state.compact;
   const sidePad = sidePadFn(c);
 
@@ -34,7 +57,7 @@ export default function App() {
       }}
     >
       <div style={{ gridArea: '1 / 1', alignSelf: 'start' }}>
-        <TopBar onLogout={actions.logout} onOpenCapture={actions.openCapture} />
+        <TopBar onLogout={() => signOut()} onOpenCapture={actions.openCapture} />
       </div>
 
       <div
