@@ -23,18 +23,18 @@ export default function App() {
 
 function SignedIn() {
   const { user } = useUser();
-  // Keyed on the user id so switching accounts remounts Today and re-reads that
-  // account's storage, rather than inheriting the previous user's tasks.
+  // Keyed on the user id so switching accounts remounts Today with fresh UI state and this
+  // account's scroll anchor, rather than inheriting the previous user's.
   return user ? <Today key={user.id} userId={user.id} /> : null;
 }
 
 function Today({ userId }: { userId: string }) {
-  const { state, actions, initialAnchorId } = useToday(userId);
+  const { state, tasks, loading, actions, initialAnchorId } = useToday(userId);
   const { signOut } = useClerk();
   const c = state.compact;
   const sidePad = sidePadFn(c);
 
-  const focusTask = state.focusId != null ? state.tasks.find((t) => t.id === state.focusId) : null;
+  const focusTask = state.focusId != null ? tasks.find((t) => t.id === state.focusId) : null;
   const currentTotal = state.focusPhase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL;
   const focusElapsed = currentTotal - state.focusLeft;
 
@@ -72,7 +72,8 @@ function Today({ userId }: { userId: string }) {
       >
         <div style={{ width: '100%', maxWidth: 640 }}>
           <TaskStream
-            tasks={state.tasks}
+            tasks={tasks}
+            loading={loading}
             compact={c}
             initialAnchorId={initialAnchorId}
             onComplete={actions.complete}

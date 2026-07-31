@@ -23,5 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Per-machine agent permissions. The shared Convex skills next to it are committed.
+.claude/settings.local.json
 .env*
 !.env.example

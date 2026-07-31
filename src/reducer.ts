@@ -1,15 +1,18 @@
 import { BREAK_TOTAL, FOCUS_TOTAL } from './types';
-import type { AppState, FocusPhase, Task } from './types';
+import type { FocusPhase, TaskId, UiState } from './types';
 
+/**
+ * Only UI state moves through here. Adding, completing and removing tasks are Convex
+ * mutations, so the actions below are the local half of those flows (the strike animation,
+ * the capture bar) plus everything that never leaves the device.
+ */
 export type Action =
-  | { type: 'ADD_TASK'; id: string; text: string }
-  | { type: 'REMOVE_TASK'; id: string }
-  | { type: 'STRIKE'; id: string }
-  | { type: 'COMPLETE'; id: string }
+  | { type: 'STRIKE'; id: TaskId }
+  | { type: 'STRIKE_DONE'; id: TaskId }
   | { type: 'OPEN_CAPTURE' }
   | { type: 'CLOSE_CAPTURE' }
   | { type: 'SET_CAPTURE_TEXT'; text: string }
-  | { type: 'ENTER_FOCUS'; id: string }
+  | { type: 'ENTER_FOCUS'; id: TaskId }
   | { type: 'EXIT_FOCUS' }
   | { type: 'FOCUS_TOGGLE' }
   | { type: 'FOCUS_RESET' }
@@ -18,48 +21,28 @@ export type Action =
 
 const currentTotal = (phase: FocusPhase) => (phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL);
 
-const patch = (tasks: Task[], id: string, fn: (t: Task) => Task) =>
-  tasks.map((t) => (t.id === id ? fn(t) : t));
-
-export function reducer(state: AppState, action: Action): AppState {
+export function reducer(state: UiState, action: Action): UiState {
   switch (action.type) {
-    case 'ADD_TASK':
-      return {
-        ...state,
-        tasks: [{ id: action.id, text: action.text, done: false, striking: false }, ...state.tasks],
-        captureText: '',
-        captureOpen: false,
-      };
+    case 'STRIKE':
+      return state.striking.includes(action.id)
+        ? state
+        : { ...state, striking: [...state.striking, action.id] };
 
-    case 'REMOVE_TASK':
-      return {
-        ...state,
-        tasks: state.tasks.filter((t) => t.id !== action.id),
-        focusId: state.focusId === action.id ? null : state.focusId,
-      };
-
-    case 'STRIKE': {
-      const t = state.tasks.find((x) => x.id === action.id);
-      if (!t || t.done || t.striking) return state;
-      return { ...state, tasks: patch(state.tasks, action.id, (x) => ({ ...x, striking: true })) };
-    }
-
-    case 'COMPLETE':
-      return {
-        ...state,
-        tasks: patch(state.tasks, action.id, (x) => ({ ...x, striking: false, done: true })),
-      };
+    case 'STRIKE_DONE':
+      return state.striking.includes(action.id)
+        ? { ...state, striking: state.striking.filter((id) => id !== action.id) }
+        : state;
 
     case 'OPEN_CAPTURE':
       return { ...state, captureOpen: true };
+    // Closing alone keeps the draft, so a stray outside click doesn't lose what was typed.
+    // Escape and a successful submit clear it explicitly.
     case 'CLOSE_CAPTURE':
       return { ...state, captureOpen: false };
     case 'SET_CAPTURE_TEXT':
       return { ...state, captureText: action.text };
 
-    case 'ENTER_FOCUS': {
-      const t = state.tasks.find((x) => x.id === action.id);
-      if (!t || t.done) return state;
+    case 'ENTER_FOCUS':
       return {
         ...state,
         focusId: action.id,
@@ -68,7 +51,6 @@ export function reducer(state: AppState, action: Action): AppState {
         focusRunning: true,
         captureOpen: false,
       };
-    }
     case 'EXIT_FOCUS':
       return { ...state, focusId: null, focusRunning: false };
     case 'FOCUS_TOGGLE':

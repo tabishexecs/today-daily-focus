@@ -1,16 +1,18 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { Task } from '../types';
+import type { Task, TaskId } from '../types';
 import { roman } from '../util';
 import { PlayIcon } from './icons';
 
 interface Props {
   tasks: Task[];
+  /** The first load hasn't landed yet, so an empty `tasks` means "unknown", not "none". */
+  loading: boolean;
   compact: boolean;
   /** Task to centre the band on at mount — the position from the last session. */
   initialAnchorId: string | null;
-  onComplete: (id: string) => void;
-  onFocus: (id: string) => void;
-  onRemove: (id: string) => void;
+  onComplete: (id: TaskId) => void;
+  onFocus: (id: TaskId) => void;
+  onRemove: (id: TaskId) => void;
   onAnchor: (id: string | null) => void;
 }
 
@@ -34,6 +36,7 @@ const centredIndex = (top: number, rowH: number, count: number) =>
 
 export function TaskStream({
   tasks,
+  loading,
   compact,
   initialAnchorId,
   onComplete,
@@ -55,6 +58,8 @@ export function TaskStream({
 
   const prevLen = useRef(tasks.length);
   const restored = useRef(false);
+  /** Set once the list has actually been rendered, so the first delivery isn't "growth". */
+  const seenList = useRef(false);
 
   // Roman numerals grow with the list (XVIII is five glyphs), and every row needs the same
   // gutter or the titles stop lining up — so size it to the widest numeral actually shown.
@@ -78,13 +83,20 @@ export function TaskStream({
   }, [initialAnchorId, tasks, rowH]);
 
   useEffect(() => {
+    // Nothing to measure or reposition until the query lands and the scroller mounts. This
+    // also keeps the loading render from writing a null anchor over the stored one.
+    const el = scroller.current;
+    if (!el) return;
+
     // A newly captured task lands at the top, so bring the top into the band. Only on
-    // growth — deleting the first task shouldn't yank you back up from wherever you were.
-    if (tasks.length > prevLen.current) {
-      scroller.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    // growth — deleting the first task shouldn't yank you back up from wherever you were,
+    // and the list arriving for the first time isn't growth: the restore above owns that.
+    if (seenList.current && tasks.length > prevLen.current) {
+      el.scrollTo({ top: 0, behavior: 'smooth' });
     }
+    seenList.current = true;
     prevLen.current = tasks.length;
-    const top = scroller.current?.scrollTop ?? 0;
+    const top = el.scrollTop;
     setScrollTop(top);
     // The list shifted, so the stored anchor may now name a different task — or a gone one.
     onAnchor(tasks[centredIndex(top, rowH, tasks.length)]?.id ?? null);
@@ -115,6 +127,10 @@ export function TaskStream({
     const viewCenter = scrollTop + viewH / 2;
     return Math.abs(rowCenter - viewCenter) / rowH;
   };
+
+  // Hold the stream's height while the first query is in flight, but say nothing: flashing
+  // "NOTHING YET" at someone who has fifty tasks is worse than a beat of empty space.
+  if (loading) return <div style={{ height: viewH }} />;
 
   if (tasks.length === 0) {
     return (
