@@ -5,7 +5,7 @@ import type { AppState, Task } from './types';
 
 // v2 dropped the slots/queue split for a single stream; v1 payloads are not read.
 // Keys are namespaced by Clerk user id, so two accounts on the same browser keep separate
-// streams. Storage is still local — signing in on another device starts from the seed list.
+// streams. Storage is still local — signing in on another device starts from an empty stream.
 const storageKey = (userId: string) => `today.v2:${userId}`;
 /**
  * Which task sat at the centre of the band when we last stopped scrolling. Stored as an id,
@@ -13,20 +13,6 @@ const storageKey = (userId: string) => `today.v2:${userId}`;
  * when work is added above it. Its own key, so scrolling never rewrites the task list.
  */
 const anchorKey = (userId: string) => `today.v2:${userId}.anchor`;
-
-const SEED = [
-  'Ship the billing migration',
-  'Reply to Dana re: Q3 roadmap',
-  'Draft the onboarding email',
-  "Review Priya's pull request",
-  'Cancel the old analytics vendor',
-  'Outline the offsite agenda',
-  'Fix the flaky auth test',
-  'Expense the conference tickets',
-];
-
-const seedTasks = (): Task[] =>
-  SEED.map((text, i) => ({ id: 't' + i, text, done: false, striking: false }));
 
 function loadTasks(userId: string): Task[] | null {
   try {
@@ -59,7 +45,8 @@ function nextId(tasks: Task[]): number {
 
 function createInitialState(userId: string): AppState {
   return {
-    tasks: loadTasks(userId) ?? seedTasks(),
+    // A user we've never stored for starts empty — the stream shows its own "nothing yet" state.
+    tasks: loadTasks(userId) ?? [],
     captureOpen: false,
     captureText: '',
     focusId: null,
