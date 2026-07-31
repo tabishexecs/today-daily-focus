@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "convex dev",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
   "dependencies": {
     "@clerk/react": "^6.12.8",
+    "convex": "^1.42.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

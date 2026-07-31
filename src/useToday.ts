@@ -1,29 +1,21 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { reducer } from './reducer';
 import { FOCUS_TOTAL } from './types';
-import type { AppState, Task } from './types';
+import type { StoredTask, Task, TaskId, UiState } from './types';
 
-// v2 dropped the slots/queue split for a single stream; v1 payloads are not read.
-// Keys are namespaced by Clerk user id, so two accounts on the same browser keep separate
-// streams. Storage is still local — signing in on another device starts from an empty stream.
-const storageKey = (userId: string) => `today.v2:${userId}`;
 /**
  * Which task sat at the centre of the band when we last stopped scrolling. Stored as an id,
  * not a pixel offset, so it survives a breakpoint change and keeps pointing at the same task
- * when work is added above it. Its own key, so scrolling never rewrites the task list.
+ * when work is added above it.
+ *
+ * This is the one thing still kept in `localStorage`: it is where *this* screen is looking,
+ * so syncing it would make one device scroll another. Namespaced by Clerk user id so two
+ * accounts in the same browser keep separate positions. Tasks themselves live in Convex; the
+ * old `today.v2:<userId>` task payloads are not read or migrated.
  */
 const anchorKey = (userId: string) => `today.v2:${userId}.anchor`;
-
-function loadTasks(userId: string): Task[] | null {
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { tasks?: Task[] };
-    return Array.isArray(parsed.tasks) ? parsed.tasks : null;
-  } catch {
-    return null;
-  }
-}
 
 function readAnchor(userId: string): string | null {
   try {
@@ -33,20 +25,17 @@ function readAnchor(userId: string): string | null {
   }
 }
 
-/** Next free numeric id suffix, so reloading can't mint an id a saved task already owns. */
-function nextId(tasks: Task[]): number {
-  let max = -1;
-  for (const t of tasks) {
-    const m = /^t(\d+)$/.exec(t.id);
-    if (m) max = Math.max(max, +m[1]);
-  }
-  return max + 1;
-}
+/**
+ * Ids minted client-side for a task that has been captured but not yet acknowledged by the
+ * server. They are never real document ids, so anything that would send one back to Convex
+ * checks this first rather than failing validation a moment later.
+ */
+const optimisticId = () => `optimistic:${crypto.randomUUID()}` as TaskId;
+const isOptimistic = (id: TaskId) => id.startsWith('optimistic:');
 
-function createInitialState(userId: string): AppState {
+function initialUiState(): UiState {
   return {
-    // A user we've never stored for starts empty — the stream shows its own "nothing yet" state.
-    tasks: loadTasks(userId) ?? [],
+    striking: [],
     captureOpen: false,
     captureText: '',
     focusId: null,
@@ -58,30 +47,64 @@ function createInitialState(userId: string): AppState {
 }
 
 /**
- * @param userId Clerk user id. The caller remounts this hook's owner on change (via `key`),
- *   so the lazy init below re-reads the new account's storage instead of carrying state over.
+ * @param userId Clerk user id, used only for the scroll anchor key. Task scoping is the
+ *   server's job now — `api.tasks.*` reads the subject off the verified JWT, so the browser
+ *   never names the account whose rows it wants. The caller still remounts this hook's owner
+ *   on change (via `key`), which resets in-flight UI state on an account switch.
  */
 export function useToday(userId: string) {
-  const [state, dispatch] = useReducer(reducer, userId, createInitialState);
+  const [state, dispatch] = useReducer(reducer, undefined, initialUiState);
 
-  // Keep a ref to the latest state so document-level listeners and timeouts
-  // read current values without re-subscribing.
+  // `undefined` while the first result is in flight; every later change to the stream —
+  // including one made on another device — pushes a new array through here.
+  const stored = useQuery(api.tasks.list);
+  const loading = stored === undefined;
+
+  // Optimistic updates keep every interaction instant: the round trip is short, but the
+  // strike animation and the capture bar both read as broken if the list waits for it.
+  const addTask = useMutation(api.tasks.add).withOptimisticUpdate((store, { text }) => {
+    const current = store.getQuery(api.tasks.list, {});
+    if (current === undefined) return;
+    const optimistic: StoredTask = { id: optimisticId(), text: text.trim(), done: false };
+    store.setQuery(api.tasks.list, {}, [optimistic, ...current]);
+  });
+
+  const completeTask = useMutation(api.tasks.complete).withOptimisticUpdate((store, { id }) => {
+    const current = store.getQuery(api.tasks.list, {});
+    if (current === undefined) return;
+    store.setQuery(
+      api.tasks.list,
+      {},
+      current.map((t) => (t.id === id ? { ...t, done: true } : t)),
+    );
+  });
+
+  const deleteTask = useMutation(api.tasks.remove).withOptimisticUpdate((store, { id }) => {
+    const current = store.getQuery(api.tasks.list, {});
+    if (current === undefined) return;
+    store.setQuery(
+      api.tasks.list,
+      {},
+      current.filter((t) => t.id !== id),
+    );
+  });
+
+  /** The server's list joined with the local strike animation. */
+  const tasks: Task[] = useMemo(
+    () => (stored ?? []).map((t) => ({ ...t, striking: state.striking.includes(t.id) })),
+    [stored, state.striking],
+  );
+
+  // Keep refs to the latest values so document-level listeners and timeouts read current
+  // state without re-subscribing.
   const stateRef = useRef(state);
   stateRef.current = state;
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
 
-  const nid = useRef(nextId(state.tasks));
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Read once: after mount the stream owns the live scroll position.
   const initialAnchorId = useRef(readAnchor(userId)).current;
-
-  // --- Persistence ---
-  useEffect(() => {
-    try {
-      localStorage.setItem(storageKey(userId), JSON.stringify({ tasks: state.tasks }));
-    } catch {
-      /* ignore quota / privacy-mode errors */
-    }
-  }, [state.tasks, userId]);
 
   const saveAnchor = useCallback(
     (id: string | null) => {
@@ -96,14 +119,27 @@ export function useToday(userId: string) {
   );
 
   // --- Multi-step orchestrations (timeouts live here, not in the reducer) ---
-  const complete = useCallback((id: string) => {
-    const t = stateRef.current.tasks.find((x) => x.id === id);
-    if (!t || t.done || t.striking) return;
-    dispatch({ type: 'STRIKE', id });
-    setTimeout(() => dispatch({ type: 'COMPLETE', id }), 520);
-  }, []);
 
-  const enterFocus = useCallback((id: string) => dispatch({ type: 'ENTER_FOCUS', id }), []);
+  /** Strike through locally, then write the completion once the line finishes drawing. */
+  const complete = useCallback(
+    (id: TaskId) => {
+      const t = tasksRef.current.find((x) => x.id === id);
+      if (!t || t.done || t.striking || isOptimistic(id)) return;
+      dispatch({ type: 'STRIKE', id });
+      setTimeout(() => {
+        // The optimistic update flips `done` as the strike clears, so the line stays drawn.
+        void completeTask({ id });
+        dispatch({ type: 'STRIKE_DONE', id });
+      }, 520);
+    },
+    [completeTask],
+  );
+
+  const enterFocus = useCallback((id: TaskId) => {
+    const t = tasksRef.current.find((x) => x.id === id);
+    if (!t || t.done || isOptimistic(id)) return;
+    dispatch({ type: 'ENTER_FOCUS', id });
+  }, []);
 
   const focusComplete = useCallback(() => {
     const id = stateRef.current.focusId;
@@ -111,24 +147,42 @@ export function useToday(userId: string) {
     if (id != null) complete(id);
   }, [complete]);
 
+  const removeTask = useCallback(
+    (id: TaskId) => {
+      if (isOptimistic(id)) return;
+      if (stateRef.current.focusId === id) dispatch({ type: 'EXIT_FOCUS' });
+      void deleteTask({ id });
+    },
+    [deleteTask],
+  );
+
   const openCapture = useCallback(() => {
     dispatch({ type: 'OPEN_CAPTURE' });
     setTimeout(() => inputRef.current?.focus(), 80);
   }, []);
 
-  const onCapKey = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      const t = (stateRef.current.captureText || '').trim();
-      if (!t) {
+  const onCapKey = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        const text = (stateRef.current.captureText || '').trim();
         dispatch({ type: 'CLOSE_CAPTURE' });
-        return;
+        dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
+        if (text) void addTask({ text });
+      } else if (e.key === 'Escape') {
+        dispatch({ type: 'CLOSE_CAPTURE' });
+        dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
       }
-      dispatch({ type: 'ADD_TASK', id: 't' + nid.current++, text: t });
-    } else if (e.key === 'Escape') {
-      dispatch({ type: 'CLOSE_CAPTURE' });
-      dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
-    }
-  }, []);
+    },
+    [addTask],
+  );
+
+  // The focused task can vanish under us — deleted on another device, or on this one from a
+  // second tab. Without this the card unmounts (App can't find it) while the timer keeps
+  // running against an id that no longer exists.
+  useEffect(() => {
+    if (loading || state.focusId == null) return;
+    if (!tasks.some((t) => t.id === state.focusId)) dispatch({ type: 'EXIT_FOCUS' });
+  }, [loading, state.focusId, tasks]);
 
   // --- Global listeners: outside-click to dismiss capture, resize ---
   useEffect(() => {
@@ -162,7 +216,7 @@ export function useToday(userId: string) {
     openCapture,
     onCapKey,
     setCaptureText: (text: string) => dispatch({ type: 'SET_CAPTURE_TEXT', text }),
-    removeTask: (id: string) => dispatch({ type: 'REMOVE_TASK', id }),
+    removeTask,
     saveAnchor,
     exitFocus: () => dispatch({ type: 'EXIT_FOCUS' }),
     focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE' }),
@@ -170,5 +224,5 @@ export function useToday(userId: string) {
     inputRef,
   };
 
-  return { state, actions, initialAnchorId };
+  return { state, tasks, loading, actions, initialAnchorId };
 }
