@@ -24,7 +24,28 @@ npm run preview  # serve the production build
 
 `VITE_CLERK_PUBLISHABLE_KEY` is required — grab it from the
 [Clerk dashboard](https://dashboard.clerk.com/~/api-keys) (choose **React**). Without it the
-app fails to boot. `.env.local` is gitignored via `*.local`.
+app fails to boot. `.env.local` is gitignored.
+
+## Deploy
+
+Deployed on Vercel (project `today-daily-focus`, framework preset Vite) at
+<https://today-daily-focus-neon.vercel.app>. There is no Git integration, so production comes
+from `vercel deploy --prod` rather than a push.
+
+`VITE_CLERK_PUBLISHABLE_KEY` is inlined at **build** time, so it must exist in Vercel's
+environment, not just in your local `.env.local` — without it Vite substitutes `undefined`,
+`<ClerkProvider>` throws on mount, and the deployed page renders blank with no visible error.
+It is set for Production, Preview, and Development; add or rotate it with:
+
+```bash
+vercel env add VITE_CLERK_PUBLISHABLE_KEY production
+vercel deploy --prod   # env changes only take effect on the next build
+```
+
+The key in use is a Clerk **development** instance key (`pk_test_…`), so the deployed site
+carries Clerk's development banner and dev-instance limits. Moving to a production instance
+needs a custom domain — Clerk requires DNS records on a domain you control, which a
+`*.vercel.app` subdomain can't provide.
 
 ## Structure
 
@@ -70,9 +91,10 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   orchestrated in `useToday` with a `setTimeout`, keeping the reducer pure. A `stateRef` lets
   document-level listeners read current state without re-subscribing.
 - **Persistence**: the task list persists to `localStorage` under `today.v2:<clerkUserId>` as
-  `{ tasks }`. v1 payloads (separate `slots` and `queue`) are deliberately not read — the key
-  was bumped and the seed list repopulates. Pre-auth `today.v2` payloads are likewise not
-  migrated; the first sign-in starts from the seed list.
+  `{ tasks }`. A user with nothing stored starts with an empty stream, which `TaskStream`
+  renders as its own "nothing yet" state. v1 payloads (separate `slots` and `queue`) are
+  deliberately not read, and pre-auth `today.v2` payloads are likewise not migrated — in both
+  cases the account simply starts empty.
 - **Scroll position survives reload** via `today.v2:<clerkUserId>.anchor`, which holds the *id* of the task
   the band was centred on, not a pixel offset — so it restores correctly across a breakpoint
   change and keeps naming the same task when work is added above it. Written on scroll settle
