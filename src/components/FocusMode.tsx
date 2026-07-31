@@ -47,32 +47,94 @@ export function FocusMode({
         position: 'fixed',
         inset: 0,
         zIndex: 80,
-        background: 'var(--bg)',
+        background:
+          'radial-gradient(120% 90% at 50% 42%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 62%), var(--bg)',
         display: 'flex',
-        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         fontFamily: "'DM Mono','Helvetica Neue',monospace",
         animation: 'focusIn 420ms ease',
       }}
     >
       <div
         style={{
-          position: 'relative',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
           padding: `20px ${sidePad}`,
-          borderBottom: '1px solid var(--divider-task)',
           display: 'flex',
-          justifyContent: 'center',
+          justifyContent: 'flex-end',
         }}
       >
+        <button
+          onClick={onExit}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 11,
+            letterSpacing: '0.24em',
+            textTransform: 'uppercase',
+            color: 'var(--strike)',
+            padding: '8px 4px',
+          }}
+        >
+          Exit
+        </button>
+      </div>
+
+      <div
+        style={{
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: 40,
+          padding: `0 ${sidePad}`,
+          boxSizing: 'border-box',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: '0.4em',
+              fontWeight: 500,
+              color: 'var(--ink)',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {fmt(left)}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              letterSpacing: '0.36em',
+              color: 'var(--muted)',
+              ...(running ? { animation: 'pulse 2600ms ease-in-out infinite' } : {}),
+            }}
+          >
+            {stateLabel}
+          </div>
+        </div>
+
         <div
+          data-float
           style={{
             width: '100%',
-            maxWidth: 520,
+            maxWidth: 420,
             display: 'flex',
             alignItems: 'center',
             gap: 18,
-            background: 'var(--card)',
-            border: '1px solid var(--hairline-alt)',
-            borderRadius: 16,
+            background: 'var(--glass)',
+            backdropFilter: 'blur(20px) saturate(1.6)',
+            WebkitBackdropFilter: 'blur(20px) saturate(1.6)',
+            border: '1px solid var(--glass-edge)',
+            borderRadius: 14,
+            boxShadow: 'var(--glass-shadow)',
             padding: '13px 15px 13px 13px',
           }}
         >
@@ -123,61 +185,7 @@ export function FocusMode({
             {running ? <PauseIcon /> : <PlayFilledIcon />}
           </button>
         </div>
-        <button
-          onClick={onExit}
-          style={{
-            position: 'absolute',
-            top: '50%',
-            right: 'clamp(46px,7vw,120px)',
-            transform: 'translateY(-50%)',
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            fontSize: 11,
-            letterSpacing: '0.24em',
-            textTransform: 'uppercase',
-            color: 'var(--muted)',
-            padding: '8px 4px',
-          }}
-        >
-          Exit
-        </button>
-      </div>
 
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 40,
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.4em',
-              fontWeight: 500,
-              color: 'var(--ink)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {fmt(left)}
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.36em',
-              color: 'var(--muted)',
-              ...(running ? { animation: 'pulse 2600ms ease-in-out infinite' } : {}),
-            }}
-          >
-            {stateLabel}
-          </div>
-        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <button onClick={onToggle} style={{ ...textBtn, color: 'var(--ink)' }}>
             {running ? 'Pause' : 'Resume'}

@@ -284,24 +284,6 @@ export function TaskStream({
           );
         })}
       </div>
-
-      {/* Band guides: only while moving, when the fade can't show where things will land. */}
-      {[pad, pad + BAND * rowH].map((top) => (
-        <div
-          key={top}
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top,
-            height: 1,
-            background: 'var(--hairline-alt)',
-            opacity: scrolling ? 1 : 0,
-            transition: 'opacity 240ms ease',
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
     </div>
   );
 }

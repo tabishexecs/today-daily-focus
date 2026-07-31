@@ -19,9 +19,12 @@ export default function App() {
     <div
       style={{
         minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: c ? '26px 22px 22px' : '54px clamp(46px,7vw,120px) 40px',
+        // One cell, two children stacked in it: the bar pins to the top while the list
+        // centres on the full height. Vertical padding is symmetric so that centre is
+        // the window's centre — anything asymmetric here shifts the list by half of it.
+        display: 'grid',
+        gridTemplate: '1fr / 1fr',
+        padding: c ? '26px 22px' : '54px clamp(46px,7vw,120px)',
         background: 'var(--bg)',
         color: 'var(--ink)',
         fontFamily: "'DM Mono','Helvetica Neue',monospace",
@@ -30,15 +33,18 @@ export default function App() {
         position: 'relative',
       }}
     >
-      <TopBar onLogout={actions.logout} onOpenCapture={actions.openCapture} />
+      <div style={{ gridArea: '1 / 1', alignSelf: 'start' }}>
+        <TopBar onLogout={actions.logout} onOpenCapture={actions.openCapture} />
+      </div>
 
       <div
         style={{
-          flex: 1,
+          gridArea: '1 / 1',
+          alignSelf: 'center',
+          justifySelf: 'center',
+          width: '100%',
           display: 'flex',
-          flexDirection: 'column',
           justifyContent: 'center',
-          alignItems: 'center',
         }}
       >
         <div style={{ width: '100%', maxWidth: 640 }}>
