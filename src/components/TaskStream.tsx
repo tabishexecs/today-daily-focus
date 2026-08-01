@@ -214,7 +214,7 @@ export function TaskStream({
                 <span
                   style={{
                     fontSize: 11,
-                    lineHeight: 1.3,
+                    lineHeight: 1.6,
                     // Done tasks keep full ink — the strike line carries the state on its own.
                     color: 'var(--ink)',
                     textTransform: 'uppercase',
@@ -231,7 +231,7 @@ export function TaskStream({
                     style={{
                       position: 'absolute',
                       left: 0,
-                      top: '0.62em',
+                      top: '0.77em',
                       height: 2,
                       background: 'var(--strike)',
                       width: t.striking || t.done ? '100%' : '0%',

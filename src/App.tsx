@@ -29,7 +29,7 @@ function SignedIn() {
 }
 
 function Today({ userId }: { userId: string }) {
-  const { state, tasks, loading, actions, initialAnchorId } = useToday(userId);
+  const { state, tasks, notes, loading, actions, initialAnchorId } = useToday(userId);
   const { signOut } = useClerk();
   const c = state.compact;
   const sidePad = sidePadFn(c);
@@ -101,10 +101,16 @@ function Today({ userId }: { userId: string }) {
           left={state.focusLeft}
           elapsed={focusElapsed}
           sidePad={sidePad}
+          notes={notes}
           onToggle={actions.focusToggle}
           onReset={actions.focusReset}
           onComplete={actions.focusComplete}
           onExit={actions.exitFocus}
+          onAddNote={actions.addNote}
+          onNoteChange={actions.setNoteText}
+          onNoteMove={actions.moveNote}
+          onNoteResize={actions.resizeNote}
+          onNoteRemove={actions.removeNote}
         />
       )}
     </div>
