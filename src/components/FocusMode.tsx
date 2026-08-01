@@ -1,5 +1,6 @@
-import type { FocusPhase } from '../types';
+import type { FocusPhase, Note, NoteId } from '../types';
 import { fmt } from '../util';
+import { FocusNotes } from './FocusNotes';
 import { PauseIcon, PlayFilledIcon } from './icons';
 
 interface Props {
@@ -9,10 +10,17 @@ interface Props {
   left: number;
   elapsed: number;
   sidePad: string;
+  /** Every note on the focused task, each carrying its own position. */
+  notes: Note[];
   onToggle: () => void;
   onReset: () => void;
   onComplete: () => void;
   onExit: () => void;
+  onAddNote: () => void;
+  onNoteChange: (id: NoteId, text: string) => void;
+  onNoteMove: (id: NoteId, x: number, y: number) => void;
+  onNoteResize: (id: NoteId, x: number, y: number, w: number, h: number) => void;
+  onNoteRemove: (id: NoteId) => void;
 }
 
 const textBtn: React.CSSProperties = {
@@ -26,6 +34,9 @@ const textBtn: React.CSSProperties = {
   padding: '6px 2px',
 };
 
+/** The two buttons in the top-right corner: the note toggle and Exit. */
+const cornerBtn: React.CSSProperties = { ...textBtn, padding: '8px 4px' };
+
 export function FocusMode({
   task,
   phase,
@@ -33,10 +44,16 @@ export function FocusMode({
   left,
   elapsed,
   sidePad,
+  notes,
   onToggle,
   onReset,
   onComplete,
   onExit,
+  onAddNote,
+  onNoteChange,
+  onNoteMove,
+  onNoteResize,
+  onNoteRemove,
 }: Props) {
   const isBreak = phase === 'break';
   const stateLabel = running ? (isBreak ? 'ON BREAK' : 'IN FOCUS') : 'PAUSED';
@@ -64,26 +81,33 @@ export function FocusMode({
           right: 0,
           padding: `20px ${sidePad}`,
           display: 'flex',
+          alignItems: 'center',
           justifyContent: 'flex-end',
+          gap: 14,
         }}
       >
         <button
-          onClick={onExit}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            fontSize: 11,
-            letterSpacing: '0.24em',
-            textTransform: 'uppercase',
-            color: 'var(--strike)',
-            padding: '8px 4px',
-          }}
+          onClick={onAddNote}
+          style={{ ...cornerBtn, color: notes.length ? 'var(--ink)' : 'var(--muted)' }}
         >
+          Add note
+        </button>
+        <span style={{ fontSize: 11, color: 'var(--faint)' }}>·</span>
+        <button onClick={onExit} style={{ ...cornerBtn, color: 'var(--strike)' }}>
           Exit
         </button>
       </div>
+
+      {/* Positioned against this overlay, which fills the window — so are the notes' own
+          coordinates. Rendered before the timer so a note dragged over it still lands on top,
+          which its z-index handles. */}
+      <FocusNotes
+        notes={notes}
+        onChange={onNoteChange}
+        onMove={onNoteMove}
+        onResize={onNoteResize}
+        onRemove={onNoteRemove}
+      />
 
       <div
         style={{
@@ -135,7 +159,7 @@ export function FocusMode({
             border: '1px solid var(--glass-edge)',
             borderRadius: 14,
             boxShadow: 'var(--glass-shadow)',
-            padding: '13px 15px 13px 13px',
+            padding: '13px 21px 13px 19px',
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -147,8 +171,11 @@ export function FocusMode({
                 color: 'var(--ink)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
                 lineHeight: 1.3,
+                // Fade the tail of long task text as it approaches the play/pause button
+                maskImage: 'linear-gradient(to right, #000 calc(100% - 48px), transparent 100%)',
+                WebkitMaskImage:
+                  'linear-gradient(to right, #000 calc(100% - 48px), transparent 100%)',
               }}
             >
               {task}

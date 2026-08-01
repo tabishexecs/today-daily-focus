@@ -54,7 +54,8 @@ a:not(.cl-rootBox *):hover {
   color: var(--primary);
 }
 
-input:not(.cl-rootBox *)::placeholder {
+input:not(.cl-rootBox *)::placeholder,
+textarea:not(.cl-rootBox *)::placeholder {
   color: var(--faint);
   letter-spacing: 0.22em;
   text-transform: uppercase;
@@ -79,9 +80,19 @@ input:not(.cl-rootBox *)::placeholder {
 [data-taskrow]:hover [data-taskdel] {
   opacity: 1 !important;
 }
-[data-taskplay]:hover,
-[data-taskdel]:hover {
+[data-taskplay]:hover {
   color: var(--primary) !important;
+}
+/* Deleting is the destructive one, so it answers in the strike red, not the accent blue. */
+[data-taskdel]:hover {
+  color: var(--strike) !important;
+}
+/* Faint until pointed at, but never invisible — a touch screen has no hover to reveal it. */
+[data-note]:hover [data-notedel] {
+  opacity: 1 !important;
+}
+[data-notedel]:hover {
+  color: var(--strike) !important;
 }
 
 /* The task stream scrolls, but a scrollbar would fight the fade. */
