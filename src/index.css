@@ -6,11 +6,9 @@
   --muted: #a99f8d;
   --faint: #c3baa9;
   --divider-task: #e9e3d8;
-  --divider-queue: #efe9df;
   --hairline-alt: #e4ddd0;
   --primary: #0249b4;
   --strike: #8b0000;
-  --break-art: #b8ad99;
   --card: #efe9dd;
   --surface: #ffffff;
   --surface-edge: #e6dfd2;
@@ -103,28 +101,6 @@ textarea:not(.cl-rootBox *)::placeholder {
   display: none;
 }
 
-@keyframes settle {
-  from {
-    opacity: 0;
-    filter: blur(4px);
-    transform: translateY(5px);
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
-    transform: none;
-  }
-}
-@keyframes rollUp {
-  from {
-    transform: translateY(0.55em);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
 @keyframes wonIn {
   from {
     opacity: 0;

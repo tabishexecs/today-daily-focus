@@ -40,6 +40,7 @@ function initialUiState(): UiState {
     captureOpen: false,
     captureText: '',
     focusId: null,
+    focusTimerId: null,
     focusRunning: false,
     focusPhase: 'focus',
     focusLeft: FOCUS_TOTAL,

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { NOTE_MAX, NOTE_MIN_W, NOTE_MIN_H } from '../types';
 import type { Note, NoteId } from '../types';
 
@@ -28,7 +28,8 @@ export function FocusNotes({ notes, onChange, onMove, onResize, onRemove }: Prop
   );
 }
 
-const between = (n: number, min: number, max: number) => Math.min(Math.max(n, min), Math.max(min, max));
+const between = (n: number, min: number, max: number) =>
+  Math.min(Math.max(n, min), Math.max(min, max));
 
 /**
  * Which sides a handle drags, as the compass letters it contains: 'e' widens from the right,
@@ -51,6 +52,18 @@ interface Box {
   h: number;
 }
 
+/** The bar carrying the drag dots and the delete button, and the padding around everything. */
+const HEAD_H = 15;
+const PAD_TOP = 6;
+const PAD_BOTTOM = 9;
+const PAD_X = 10;
+
+/**
+ * Everything in the card that is not the writing area. Added to the height the text needs to
+ * get the height the card needs.
+ */
+const CHROME = PAD_TOP + HEAD_H + PAD_BOTTOM + 2; // the two 1px borders
+
 function NoteCard({
   note,
   onChange,
@@ -69,10 +82,33 @@ function NoteCard({
   const start = useRef({ px: 0, py: 0, x: 0, y: 0, w: 0, h: 0 });
   const dir = useRef<Dir>('se');
 
+  // How tall the text is right now, at the note's current width. Measured rather than stored:
+  // it follows from the text, which is stored, so it comes out the same on any device.
+  const area = useRef<HTMLTextAreaElement | null>(null);
+  const [textH, setTextH] = useState(NOTE_MIN_H - CHROME);
+
   const x = drag?.x ?? box?.x ?? note.x;
   const y = drag?.y ?? box?.y ?? note.y;
   const w = box?.w ?? note.w;
-  const h = box?.h ?? note.h;
+
+  // Re-measured on both of the things that move the wrapping. `scrollHeight` only reports the
+  // height of the text when the box is not already taller than it, so the box is collapsed for
+  // the reading and put back before the browser gets to paint either one.
+  useLayoutEffect(() => {
+    const el = area.current;
+    if (!el) return;
+    const held = el.style.height;
+    el.style.height = 'auto';
+    const measured = el.scrollHeight;
+    el.style.height = held;
+    setTextH(measured);
+  }, [text, w]);
+
+  /** The shortest the card can be: text that has run out of room grows the note instead. */
+  const minH = Math.max(NOTE_MIN_H, textH + CHROME);
+  // The stored height is the one the user dragged to — a floor, not a ceiling. Typing past it
+  // grows the card; deleting the text again drops it back to what they chose.
+  const h = Math.max(box?.h ?? note.h, minH);
   const busy = drag !== null || box !== null;
 
   /** Shared opening for both gestures: capture the pointer and record where it started. */
@@ -80,12 +116,15 @@ function NoteCard({
     // Without this the gesture would also be selecting the text under the pointer.
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    start.current = { px: e.clientX, py: e.clientY, x: note.x, y: note.y, w: note.w, h: note.h };
+    // The geometry on screen rather than the stored geometry: a note grown by its text is
+    // taller than the height it stores, and an edge has to move with the pointer from where
+    // it was grabbed.
+    start.current = { px: e.clientX, py: e.clientY, x, y, w, h };
   };
 
   const onDragDown = (e: React.PointerEvent) => {
     beginGesture(e);
-    setDrag({ x: note.x, y: note.y });
+    setDrag({ x, y });
   };
 
   const onDragMove = (e: React.PointerEvent) => {
@@ -108,7 +147,7 @@ function NoteCard({
   const onSizeDown = (which: Dir) => (e: React.PointerEvent) => {
     beginGesture(e);
     dir.current = which;
-    setBox({ x: note.x, y: note.y, w: note.w, h: note.h });
+    setBox({ x, y, w, h });
   };
 
   const onSizeMove = (e: React.PointerEvent) => {
@@ -125,7 +164,8 @@ function NoteCard({
     let height = s.h;
 
     if (dir.current.includes('e')) width = between(s.w + dx, NOTE_MIN_W, vw - left);
-    if (dir.current.includes('s')) height = between(s.h + dy, NOTE_MIN_H, vh - top);
+    // Against `minH`, not `NOTE_MIN_H`: an edge dragged in past the text stops at the text.
+    if (dir.current.includes('s')) height = between(s.h + dy, minH, vh - top);
     // Pulling a left or top edge shrinks the note from that side, so the note's own corner
     // moves with the pointer — down to the minimum size, where the edge stops.
     if (dir.current.includes('w')) {
@@ -134,7 +174,7 @@ function NoteCard({
       left = edge;
     }
     if (dir.current.includes('n')) {
-      const edge = between(top + dy, 0, top + s.h - NOTE_MIN_H);
+      const edge = between(top + dy, 0, top + s.h - minH);
       height = top + s.h - edge;
       top = edge;
     }
@@ -164,20 +204,24 @@ function NoteCard({
         // The stored fraction can put a note off the right or bottom edge of a window
         // narrower than the one it was placed in, so every position is capped here too.
         left: `min(${x * 100}%, calc(100% - ${w}px))`,
-        top: `min(${y * 100}%, calc(100% - ${h}px))`,
+        // A note grown taller than the window is held to the window and scrolls after all —
+        // in CSS rather than in the numbers above, so it keeps up with a window being resized.
+        top: `max(0px, min(${y * 100}%, calc(100% - ${h}px)))`,
         width: w,
-        height: h,
+        height: `min(${h}px, 100%)`,
         zIndex: busy ? 4 : 3,
         background: 'var(--card)',
         border: '1px solid var(--hairline-alt)',
         boxShadow: busy ? 'var(--surface-shadow)' : '0 6px 18px -12px rgba(36, 33, 28, 0.5)',
         display: 'flex',
         flexDirection: 'column',
-        padding: '6px 10px 9px',
+        padding: `${PAD_TOP}px ${PAD_X}px ${PAD_BOTTOM}px`,
         animation: 'wonIn 220ms ease',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 15 }}>
+      <div
+        style={{ display: 'flex', alignItems: 'center', gap: 6, height: HEAD_H, flexShrink: 0 }}
+      >
         <span
           onPointerDown={onDragDown}
           onPointerMove={onDragMove}
@@ -217,6 +261,7 @@ function NoteCard({
         </button>
       </div>
       <textarea
+        ref={area}
         // A note is created empty, so the one that just arrived is the one to type into.
         autoFocus={note.text === ''}
         value={text}
@@ -227,7 +272,11 @@ function NoteCard({
         }}
         placeholder="Note"
         style={{
-          flex: 1,
+          // Sized outright rather than by `flex: 1`, which would ignore the height the
+          // measurement above sets. It still gives way when the window holds the card short.
+          flex: '0 1 auto',
+          height: h - CHROME,
+          minHeight: 0,
           background: 'none',
           border: 'none',
           outline: 'none',

@@ -25,6 +25,13 @@ const NOTE_MIN_H = 104;
 const NOTE_MAX_SIDE = 4000;
 
 /**
+ * A stored position is a fraction of the overlay. Clamped on the way in as well as in the
+ * drag: a position outside the overlay would put the note somewhere the user cannot reach
+ * to drag it back.
+ */
+const frac = (n: number) => Math.min(1, Math.max(0, n));
+
+/**
  * Strips `userId`, `taskId` and `_creationTime` — the client has all three in hand — and
  * fills in the size of a note that has never been resized, so the client sees numbers.
  */
@@ -99,9 +106,7 @@ export const move = mutation({
   handler: async (ctx, { id, x, y }) => {
     await ownNote(ctx, id);
     if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error('Bad position');
-    // Clamped here as well as in the drag: a position outside the overlay would put the
-    // note somewhere the user cannot reach to drag it back.
-    await ctx.db.patch(id, { x: Math.min(1, Math.max(0, x)), y: Math.min(1, Math.max(0, y)) });
+    await ctx.db.patch(id, { x: frac(x), y: frac(y) });
   },
 });
 
@@ -117,8 +122,8 @@ export const resize = mutation({
     if (![x, y, w, h].every(Number.isFinite)) throw new Error('Bad geometry');
     const side = (n: number, min: number) => Math.min(NOTE_MAX_SIDE, Math.max(min, n));
     await ctx.db.patch(id, {
-      x: Math.min(1, Math.max(0, x)),
-      y: Math.min(1, Math.max(0, y)),
+      x: frac(x),
+      y: frac(y),
       w: side(w, NOTE_MIN_W),
       h: side(h, NOTE_MIN_H),
     });

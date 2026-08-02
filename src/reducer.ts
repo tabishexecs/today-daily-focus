@@ -1,4 +1,4 @@
-import { BREAK_TOTAL, FOCUS_TOTAL } from './types';
+import { FOCUS_TOTAL, totalFor } from './types';
 import type { FocusPhase, TaskId, UiState } from './types';
 
 /**
@@ -18,8 +18,6 @@ export type Action =
   | { type: 'FOCUS_RESET' }
   | { type: 'TICK' }
   | { type: 'SET_COMPACT'; compact: boolean };
-
-const currentTotal = (phase: FocusPhase) => (phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL);
 
 export function reducer(state: UiState, action: Action): UiState {
   switch (action.type) {
@@ -42,27 +40,34 @@ export function reducer(state: UiState, action: Action): UiState {
     case 'SET_CAPTURE_TEXT':
       return { ...state, captureText: action.text };
 
-    case 'ENTER_FOCUS':
+    case 'ENTER_FOCUS': {
+      // The clock belongs to the task rather than to the focus screen, so leaving and coming
+      // back to the same task picks its pomodoro up where it was put down. Any other task
+      // starts a fresh one — a pomodoro is a stretch of work on one thing.
+      const resumed = state.focusTimerId === action.id;
       return {
         ...state,
         focusId: action.id,
-        focusPhase: 'focus',
-        focusLeft: FOCUS_TOTAL,
+        focusTimerId: action.id,
+        focusPhase: resumed ? state.focusPhase : 'focus',
+        focusLeft: resumed ? state.focusLeft : FOCUS_TOTAL,
         focusRunning: true,
         captureOpen: false,
       };
+    }
+    // The clock stops but is not cleared: `focusTimerId` still names the task holding it.
     case 'EXIT_FOCUS':
       return { ...state, focusId: null, focusRunning: false };
     case 'FOCUS_TOGGLE':
       return { ...state, focusRunning: !state.focusRunning };
     case 'FOCUS_RESET':
-      return { ...state, focusLeft: currentTotal(state.focusPhase), focusRunning: false };
+      return { ...state, focusLeft: totalFor(state.focusPhase), focusRunning: false };
 
     case 'TICK': {
       if (state.focusId == null || !state.focusRunning) return state;
       if (state.focusLeft > 1) return { ...state, focusLeft: state.focusLeft - 1 };
-      const nextPhase: FocusPhase = state.focusPhase === 'focus' ? 'break' : 'focus';
-      return { ...state, focusPhase: nextPhase, focusLeft: currentTotal(nextPhase), focusRunning: true };
+      const next: FocusPhase = state.focusPhase === 'focus' ? 'break' : 'focus';
+      return { ...state, focusPhase: next, focusLeft: totalFor(next), focusRunning: true };
     }
 
     case 'SET_COMPACT':

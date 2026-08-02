@@ -11,7 +11,8 @@ const MO = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT'
 export const dateStr = (now = new Date()): string =>
   `${WD[now.getDay()]} · ${MO[now.getMonth()]} ${now.getDate()}`;
 
-export const sidePad = (compact: boolean): string =>
+/** Horizontal breathing room at the window's edges, shared by every full-width surface. */
+export const sidePadFor = (compact: boolean): string =>
   compact ? '22px' : 'clamp(46px,7vw,120px)';
 
 const ROMAN: readonly [number, string][] = [

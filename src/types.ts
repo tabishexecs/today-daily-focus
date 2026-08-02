@@ -44,6 +44,11 @@ export interface UiState {
   captureOpen: boolean;
   captureText: string;
   focusId: TaskId | null;
+  /**
+   * The task the clock below belongs to, which outlives `focusId` — that goes null on exit,
+   * this does not. It is what lets the same task be picked back up mid-pomodoro.
+   */
+  focusTimerId: TaskId | null;
   focusRunning: boolean;
   focusPhase: FocusPhase;
   focusLeft: number;
@@ -59,3 +64,7 @@ export const NOTE_MIN_H = 104;
 
 export const FOCUS_TOTAL = 1500; // 25:00
 export const BREAK_TOTAL = 300; // 5:00
+
+/** How long the clock runs in a given phase — what `focusLeft` counts down from. */
+export const totalFor = (phase: FocusPhase): number =>
+  phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL;
