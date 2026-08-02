@@ -1,4 +1,5 @@
 import type { FocusPhase, Note, NoteId } from '../types';
+import { cornerBtn, textBtn } from '../styles';
 import { fmt } from '../util';
 import { FocusNotes } from './FocusNotes';
 import { PauseIcon, PlayFilledIcon } from './icons';
@@ -23,19 +24,8 @@ interface Props {
   onNoteRemove: (id: NoteId) => void;
 }
 
-const textBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  fontSize: 11,
-  letterSpacing: '0.24em',
-  textTransform: 'uppercase',
-  padding: '6px 2px',
-};
-
-/** The two buttons in the top-right corner: the note toggle and Exit. */
-const cornerBtn: React.CSSProperties = { ...textBtn, padding: '8px 4px' };
+/** Fades the tail of long task text as it approaches the play/pause button. */
+const TAIL_FADE = 'linear-gradient(to right, #000 calc(100% - 48px), transparent 100%)';
 
 export function FocusMode({
   task,
@@ -169,10 +159,8 @@ export function FocusMode({
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 lineHeight: 1.3,
-                // Fade the tail of long task text as it approaches the play/pause button
-                maskImage: 'linear-gradient(to right, #000 calc(100% - 48px), transparent 100%)',
-                WebkitMaskImage:
-                  'linear-gradient(to right, #000 calc(100% - 48px), transparent 100%)',
+                maskImage: TAIL_FADE,
+                WebkitMaskImage: TAIL_FADE,
               }}
             >
               {task}

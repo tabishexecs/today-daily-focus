@@ -64,3 +64,7 @@ export const NOTE_MIN_H = 104;
 
 export const FOCUS_TOTAL = 1500; // 25:00
 export const BREAK_TOTAL = 300; // 5:00
+
+/** How long the clock runs in a given phase — what `focusLeft` counts down from. */
+export const totalFor = (phase: FocusPhase): number =>
+  phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL;

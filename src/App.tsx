@@ -1,7 +1,7 @@
 import { Show, useClerk, useUser } from '@clerk/react';
-import { BREAK_TOTAL, FOCUS_TOTAL } from './types';
+import { totalFor } from './types';
 import { useToday } from './useToday';
-import { sidePad as sidePadFn } from './util';
+import { sidePadFor } from './util';
 import { TopBar } from './components/TopBar';
 import { TaskStream } from './components/TaskStream';
 import { CaptureBar } from './components/CaptureBar';
@@ -32,11 +32,10 @@ function Today({ userId }: { userId: string }) {
   const { state, tasks, notes, loading, actions, initialAnchorId } = useToday(userId);
   const { signOut } = useClerk();
   const c = state.compact;
-  const sidePad = sidePadFn(c);
+  const sidePad = sidePadFor(c);
 
   const focusTask = state.focusId != null ? tasks.find((t) => t.id === state.focusId) : null;
-  const currentTotal = state.focusPhase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL;
-  const focusElapsed = currentTotal - state.focusLeft;
+  const focusElapsed = totalFor(state.focusPhase) - state.focusLeft;
 
   return (
     <div
@@ -47,7 +46,8 @@ function Today({ userId }: { userId: string }) {
         // the window's centre — anything asymmetric here shifts the list by half of it.
         display: 'grid',
         gridTemplate: '1fr / 1fr',
-        padding: c ? '26px 22px' : '54px clamp(46px,7vw,120px)',
+        // The same side padding the capture bar and the focus screen use, so all three line up.
+        padding: `${c ? '26px' : '54px'} ${sidePad}`,
         background: 'var(--bg)',
         color: 'var(--ink)',
         fontFamily: "'DM Mono','Helvetica Neue',monospace",

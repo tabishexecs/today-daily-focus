@@ -28,6 +28,9 @@ const ROW_H_COMPACT = 56;
 /** Idle time that counts as "stopped scrolling". */
 const SETTLE_MS = 200;
 
+/** Softens where the ghost rows meet the edges of the window. */
+const FADE = 'linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent)';
+
 /** Snapped offset that centres row `i`. Row 1 is centred at the top of the range. */
 const offsetFor = (i: number, rowH: number) => Math.max(0, (i - 1) * rowH);
 /** The task the band is centred on at a given offset — the inverse of `offsetFor`. */
@@ -164,19 +167,18 @@ export function TaskStream({
           overflowY: 'auto',
           overscrollBehavior: 'contain',
           scrollSnapType: 'y mandatory',
-          scrollbarWidth: 'none',
           paddingTop: pad,
           paddingBottom: pad,
-          // Soften where the ghost rows meet the edges of the window.
-          maskImage: 'linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent, #000 16%, #000 84%, transparent)',
+          // The scrollbar itself is hidden in `index.css`, which can reach the WebKit
+          // pseudo-element an inline style can't.
+          maskImage: FADE,
+          WebkitMaskImage: FADE,
         }}
       >
         {tasks.map((t, i) => {
           const d = rowDistance(i);
           const inBand = d <= 1.02;
           const opacity = scrolling ? 1 : inBand ? 1 : d <= 2.05 ? 0.12 : 0.06;
-          const canFocus = !t.done;
 
           return (
             <div
@@ -241,7 +243,7 @@ export function TaskStream({
                 </span>
 
                 <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {canFocus && (
+                  {!t.done && (
                     <button
                       data-taskplay=""
                       onClick={(e) => {

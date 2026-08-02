@@ -1,4 +1,4 @@
-import { BREAK_TOTAL, FOCUS_TOTAL } from './types';
+import { FOCUS_TOTAL, totalFor } from './types';
 import type { FocusPhase, TaskId, UiState } from './types';
 
 /**
@@ -18,8 +18,6 @@ export type Action =
   | { type: 'FOCUS_RESET' }
   | { type: 'TICK' }
   | { type: 'SET_COMPACT'; compact: boolean };
-
-const currentTotal = (phase: FocusPhase) => (phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL);
 
 export function reducer(state: UiState, action: Action): UiState {
   switch (action.type) {
@@ -63,13 +61,13 @@ export function reducer(state: UiState, action: Action): UiState {
     case 'FOCUS_TOGGLE':
       return { ...state, focusRunning: !state.focusRunning };
     case 'FOCUS_RESET':
-      return { ...state, focusLeft: currentTotal(state.focusPhase), focusRunning: false };
+      return { ...state, focusLeft: totalFor(state.focusPhase), focusRunning: false };
 
     case 'TICK': {
       if (state.focusId == null || !state.focusRunning) return state;
       if (state.focusLeft > 1) return { ...state, focusLeft: state.focusLeft - 1 };
-      const nextPhase: FocusPhase = state.focusPhase === 'focus' ? 'break' : 'focus';
-      return { ...state, focusPhase: nextPhase, focusLeft: currentTotal(nextPhase), focusRunning: true };
+      const next: FocusPhase = state.focusPhase === 'focus' ? 'break' : 'focus';
+      return { ...state, focusPhase: next, focusLeft: totalFor(next), focusRunning: true };
     }
 
     case 'SET_COMPACT':
