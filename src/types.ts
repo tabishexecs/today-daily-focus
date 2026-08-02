@@ -1,35 +1,29 @@
 import type { Id } from '../convex/_generated/dataModel';
 
-/** A Convex document id. A branded string, so it still compares and serializes as one. */
 export type TaskId = Id<'tasks'>;
 export type NoteId = Id<'notes'>;
 
-/** What the server stores and `api.tasks.list` returns. */
+/** What `api.tasks.list` returns. */
 export interface StoredTask {
   id: TaskId;
   text: string;
   done: boolean;
 }
 
-/**
- * One note pinned over the focused task, as `api.notes.forTask` returns it. `x` and `y` are
- * fractions of the focus overlay, so they mean the same thing on any window size.
- */
 export interface Note {
   id: NoteId;
   text: string;
+  /** Fractions of the focus overlay, so a note holds its place on any window size. */
   x: number;
   y: number;
-  /** Size in pixels. The server fills these in for a note that has never been resized. */
+  /** Pixels. The server fills these in for a note that has never been resized. */
   w: number;
   h: number;
 }
 
 /**
- * A task as the stream reads it: the stored fields plus the strike-through animation.
- * `striking` is deliberately not part of `StoredTask` — it lasts 520ms and belongs to the
- * device that clicked, so persisting it would mean a write per animation and a row that
- * arrives mid-strike on another device.
+ * A task as the stream reads it. `striking` stays out of `StoredTask`: it lasts 520ms and
+ * belongs to the device that clicked, so persisting it would mean a write per animation.
  */
 export interface Task extends StoredTask {
   striking: boolean;
@@ -37,11 +31,7 @@ export interface Task extends StoredTask {
 
 export type FocusPhase = 'focus' | 'break';
 
-/**
- * Where the pomodoro panel has been dragged to — the top-left corner of it, as fractions of the
- * window, for the same reason a note's position is: the panel comes back to the same place on a
- * window it was not placed in.
- */
+/** The pomodoro panel's top-left corner, as fractions of the window. */
 export interface PanelPos {
   x: number;
   y: number;
@@ -49,42 +39,34 @@ export interface PanelPos {
 
 /** Everything the reducer owns. The task list is not here — Convex owns it. */
 export interface UiState {
-  /** Ids currently striking through. Cleared when the completion lands. */
   striking: TaskId[];
   captureOpen: boolean;
   captureText: string;
   focusId: TaskId | null;
   /**
-   * The task the clock below belongs to, which outlives `focusId` — that goes null on exit,
-   * this does not. It is what lets the same task be picked back up mid-pomodoro.
+   * The task the clock belongs to. Outlives `focusId`, which goes null on exit — that is what
+   * lets the same task be picked back up mid-pomodoro.
    */
   focusTimerId: TaskId | null;
   focusRunning: boolean;
   focusPhase: FocusPhase;
   focusLeft: number;
-  /**
-   * Whether the floating pomodoro panel is showing. Only the panel is opened and closed here —
-   * the clock it displays is the one above, which runs whether or not anything is looking at it.
-   */
+  /** Whether the panel is showing. The clock runs whether or not anything is looking at it. */
   pomodoroOpen: boolean;
-  /**
-   * Where that panel sits, or null while it has never been moved — which is what leaves it
-   * pinned to its corner. Read from `localStorage` at startup and written back on each drop.
-   */
+  /** Null until the panel is first moved, which is what leaves it pinned to its corner. */
   pomodoroPos: PanelPos | null;
   compact: boolean;
 }
 
-/** Matches `NOTE_MAX` in `convex/notes.ts`, which rejects anything longer. */
+/** Mirrors `NOTE_MAX` in `convex/notes.ts`, which rejects anything longer. */
 export const NOTE_MAX = 2000;
 
-/** Matches `NOTE_MIN_W` / `NOTE_MIN_H` in `convex/notes.ts`, which clamps to them. */
+/** Mirrors `NOTE_MIN_W` / `NOTE_MIN_H` in `convex/notes.ts`, which clamps to them. */
 export const NOTE_MIN_W = 188;
 export const NOTE_MIN_H = 104;
 
 export const FOCUS_TOTAL = 1500; // 25:00
 export const BREAK_TOTAL = 300; // 5:00
 
-/** How long the clock runs in a given phase — what `focusLeft` counts down from. */
 export const totalFor = (phase: FocusPhase): number =>
   phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL;

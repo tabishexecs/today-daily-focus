@@ -11,13 +11,8 @@ import App from './App.tsx';
 // on mount with a blank page.
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
-// The SDK falls back to VITE_CLERK_PUBLISHABLE_KEY on its own, but @clerk/react 6.12's
-// types still mark publishableKey required, so `tsc -b` fails without it. Passing the same
-// env var explicitly keeps the build green and changes nothing at runtime.
-//
-// ConvexProviderWithClerk sits inside ClerkProvider and hands Convex a token fetcher, so
-// every query and mutation carries the signed-in user's JWT. Convex verifies it server-side
-// against `convex/auth.config.ts`.
+// `publishableKey` is passed explicitly only because @clerk/react 6.12's types mark it
+// required; the SDK would find the same env var on its own.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/">

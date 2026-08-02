@@ -1,11 +1,7 @@
 import { FOCUS_TOTAL, totalFor } from './types';
 import type { FocusPhase, TaskId, UiState } from './types';
 
-/**
- * Only UI state moves through here. Adding, completing and removing tasks are Convex
- * mutations, so the actions below are the local half of those flows (the strike animation,
- * the capture bar) plus everything that never leaves the device.
- */
+/** UI state only — tasks are Convex mutations, so these are the local half of those flows. */
 export type Action =
   | { type: 'STRIKE'; id: TaskId }
   | { type: 'STRIKE_DONE'; id: TaskId }
@@ -35,17 +31,14 @@ export function reducer(state: UiState, action: Action): UiState {
 
     case 'OPEN_CAPTURE':
       return { ...state, captureOpen: true };
-    // Closing alone keeps the draft, so a stray outside click doesn't lose what was typed.
-    // Escape and a successful submit clear it explicitly.
+    // Keeps the draft, so a stray outside click doesn't lose it. Escape and submit clear it.
     case 'CLOSE_CAPTURE':
       return { ...state, captureOpen: false };
     case 'SET_CAPTURE_TEXT':
       return { ...state, captureText: action.text };
 
     case 'ENTER_FOCUS': {
-      // The clock belongs to the task rather than to the focus screen, so leaving and coming
-      // back to the same task picks its pomodoro up where it was put down. Any other task
-      // starts a fresh one — a pomodoro is a stretch of work on one thing.
+      // Re-entering the same task resumes its clock; any other task starts a fresh one.
       const resumed = state.focusTimerId === action.id;
       return {
         ...state,
@@ -57,8 +50,7 @@ export function reducer(state: UiState, action: Action): UiState {
         captureOpen: false,
       };
     }
-    // The clock stops but is not cleared: `focusTimerId` still names the task holding it. The
-    // panel closes with the screen it floats over, so the next focus opens on the same view.
+    // The clock stops but is not cleared: `focusTimerId` still names the task holding it.
     case 'EXIT_FOCUS':
       return { ...state, focusId: null, focusRunning: false, pomodoroOpen: false };
     case 'FOCUS_TOGGLE':
@@ -66,16 +58,13 @@ export function reducer(state: UiState, action: Action): UiState {
     case 'FOCUS_RESET':
       return { ...state, focusLeft: totalFor(state.focusPhase), focusRunning: false };
 
-    // Opening also starts the clock, because the button that does it says "Start Pomodoro" —
-    // pressing it and watching a paused timer sit there would be a lie. Closing only hides
-    // the panel; the pomodoro carries on behind it.
+    // Opening starts the clock — the button says "Start Pomodoro". Closing only hides the
+    // panel; the pomodoro carries on behind it.
     case 'TOGGLE_POMODORO':
       return state.pomodoroOpen
         ? { ...state, pomodoroOpen: false }
         : { ...state, pomodoroOpen: true, focusRunning: true };
 
-    // Once per drop, not once per pointer move — the panel carries the drag itself and only
-    // says where it landed.
     case 'MOVE_POMODORO':
       return { ...state, pomodoroPos: { x: action.x, y: action.y } };
 

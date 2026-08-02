@@ -33,13 +33,10 @@ export function FocusNotes({ notes, onChange, onMove, onResize, onRemove }: Prop
 const between = (n: number, min: number, max: number) =>
   Math.min(Math.max(n, min), Math.max(min, max));
 
-/**
- * Which sides a handle drags, as the compass letters it contains: 'e' widens from the right,
- * 'w' from the left, 'se' does both axes at once.
- */
+/** Which sides a handle drags, as the compass letters it contains. */
 type Dir = 'n' | 's' | 'e' | 'w' | 'se';
 
-/** Where each handle sits on the note. The edges are invisible strips straddling the border. */
+/** Invisible strips straddling each border. */
 const HANDLES: { dir: Dir; cursor: string; style: React.CSSProperties }[] = [
   { dir: 'n', cursor: 'ns-resize', style: { top: -3, left: 0, right: 0, height: 7 } },
   { dir: 's', cursor: 'ns-resize', style: { bottom: -3, left: 0, right: 0, height: 7 } },
@@ -54,49 +51,28 @@ interface Box {
   h: number;
 }
 
-/**
- * The bar carrying the drag dots and the delete button, and the padding around everything.
- * The bar is as tall as the disc in it, the way the pomodoro's header is; the padding is wider
- * than a flat card wanted because glass needs air inside its corners to read as a pane rather
- * than as a filled box.
- */
+/** The header bar — as tall as the disc in it — and the padding around everything. */
 const HEAD_H = 24;
 const PAD_TOP = 8;
 const PAD_BOTTOM = 10;
 const PAD_X = 12;
 
-/**
- * Smaller than the pomodoro's 26: the same continuous corner, but a note is a fraction of the
- * panel's size and that radius on this box would curve away most of its short edge.
- */
 const RADIUS = 16;
 
-/**
- * Under the header bar: what the bar keeps inside its own bottom edge, then the clear gap to
- * the first line of writing. The dots and the dismiss are the card's furniture and the text is
- * what the card is for, so they are separated rather than stacked.
- */
+/** What the header keeps inside its own bottom edge, then the gap to the first line. */
 const HEAD_PAD_B = 6;
 const HEAD_GAP = 5;
 
 /**
- * A note is the one pane in the app made of two thicknesses of glass.
- *
- * The writing area is the clearer: a step back from the app's `--glass-blur`, so what is behind
- * the note still comes through as something rather than as fog, and the surface under the words
- * reads as thin. The header is the frostier, and gets there for free — its filter is applied to
- * what the card has already blurred, because a backdrop is everything painted beneath the
- * element, so the two compound and the bar carrying the furniture sits on denser glass than the
- * part being written on. That is also why its saturation is barely raised: the body's is already
- * in the picture, and asking twice pushes the colour past what the glass is pulling through.
+ * Two thicknesses of glass. The writing area is the clearer, a step back from `--glass-blur`,
+ * so what is behind still reads as something. The header is frostier for free: a backdrop is
+ * everything painted beneath, so its filter compounds with the card's — which is also why its
+ * saturation is barely raised.
  */
 const BODY_BLUR = 'blur(24px) saturate(1.8)';
 const HEAD_BLUR = 'blur(26px) saturate(1.1)';
 
-/**
- * Everything in the card that is not the writing area. Added to the height the text needs to
- * get the height the card needs.
- */
+/** Everything that is not the writing area, added to the height the text needs. */
 const CHROME =
   PAD_TOP + HEAD_H + HEAD_PAD_B + 1 + HEAD_GAP + PAD_BOTTOM + 2; // the bar's seam, then the two 1px borders
 
@@ -107,19 +83,18 @@ function NoteCard({
   onResize,
   onRemove,
 }: { note: Note } & Omit<Props, 'notes'>) {
-  // The typed text leads the stored copy — writes are debounced — so the textarea reads this,
-  // not the note. Seeded once: the card is keyed by id, so a different note is a new card.
+  // The typed text leads the stored copy — writes are debounced — so the textarea reads this.
+  // Seeded once: the card is keyed by id, so a different note is a new card.
   const [text, setText] = useState(note.text);
 
-  // Each is non-null only while that gesture is in flight, and each commits once on release —
-  // so a drag across the window, or a resize to twice the size, is a single write.
+  // Each is non-null only while that gesture is in flight, and commits once on release.
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [box, setBox] = useState<Box | null>(null);
   const start = useRef({ px: 0, py: 0, x: 0, y: 0, w: 0, h: 0 });
   const dir = useRef<Dir>('se');
 
-  // How tall the text is right now, at the note's current width. Measured rather than stored:
-  // it follows from the text, which is stored, so it comes out the same on any device.
+  // Measured rather than stored: the height follows from the text, so it comes out the same
+  // on any device.
   const area = useRef<HTMLTextAreaElement | null>(null);
   const [textH, setTextH] = useState(NOTE_MIN_H - CHROME);
 
@@ -127,9 +102,8 @@ function NoteCard({
   const y = drag?.y ?? box?.y ?? note.y;
   const w = box?.w ?? note.w;
 
-  // Re-measured on both of the things that move the wrapping. `scrollHeight` only reports the
-  // height of the text when the box is not already taller than it, so the box is collapsed for
-  // the reading and put back before the browser gets to paint either one.
+  // `scrollHeight` only reports the text's height when the box is not already taller than it,
+  // so the box is collapsed for the reading and put back before either one is painted.
   useLayoutEffect(() => {
     const el = area.current;
     if (!el) return;
@@ -142,19 +116,17 @@ function NoteCard({
 
   /** The shortest the card can be: text that has run out of room grows the note instead. */
   const minH = Math.max(NOTE_MIN_H, textH + CHROME);
-  // The stored height is the one the user dragged to — a floor, not a ceiling. Typing past it
-  // grows the card; deleting the text again drops it back to what they chose.
+  // The stored height is a floor, not a ceiling: typing past it grows the card, deleting the
+  // text drops it back to what was dragged to.
   const h = Math.max(box?.h ?? note.h, minH);
   const busy = drag !== null || box !== null;
 
-  /** Shared opening for both gestures: capture the pointer and record where it started. */
   const beginGesture = (e: React.PointerEvent) => {
-    // Without this the gesture would also be selecting the text under the pointer.
+    // Without this the gesture would also select the text under the pointer.
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    // The geometry on screen rather than the stored geometry: a note grown by its text is
-    // taller than the height it stores, and an edge has to move with the pointer from where
-    // it was grabbed.
+    // The geometry on screen, not the stored geometry: a note grown by its text is taller than
+    // the height it stores, and an edge has to move from where it was grabbed.
     start.current = { px: e.clientX, py: e.clientY, x, y, w, h };
   };
 
@@ -166,7 +138,7 @@ function NoteCard({
   const onDragMove = (e: React.PointerEvent) => {
     if (!drag) return;
     const s = start.current;
-    // Positions are fractions of the window, which is exactly the focus overlay's box.
+    // Fractions of the window, which is exactly the focus overlay's box.
     setDrag({
       x: between(s.x + (e.clientX - s.px) / window.innerWidth, 0, 1 - w / window.innerWidth),
       y: between(s.y + (e.clientY - s.py) / window.innerHeight, 0, 1 - h / window.innerHeight),
@@ -193,7 +165,7 @@ function NoteCard({
     const vh = window.innerHeight;
     const dx = e.clientX - s.px;
     const dy = e.clientY - s.py;
-    // Worked in pixels: an edge follows the pointer, and the opposite edge holds still.
+    // In pixels: an edge follows the pointer, the opposite edge holds still.
     let left = s.x * vw;
     let top = s.y * vh;
     let width = s.w;
@@ -202,8 +174,8 @@ function NoteCard({
     if (dir.current.includes('e')) width = between(s.w + dx, NOTE_MIN_W, vw - left);
     // Against `minH`, not `NOTE_MIN_H`: an edge dragged in past the text stops at the text.
     if (dir.current.includes('s')) height = between(s.h + dy, minH, vh - top);
-    // Pulling a left or top edge shrinks the note from that side, so the note's own corner
-    // moves with the pointer — down to the minimum size, where the edge stops.
+    // A left or top edge shrinks the note from that side, so its own corner moves with the
+    // pointer — down to the minimum size, where the edge stops.
     if (dir.current.includes('w')) {
       const edge = between(left + dx, 0, left + s.w - NOTE_MIN_W);
       width = left + s.w - edge;
@@ -237,32 +209,24 @@ function NoteCard({
       data-note
       style={{
         position: 'absolute',
-        // The stored fraction can put a note off the right or bottom edge of a window
-        // narrower than the one it was placed in, so every position is capped here too.
+        // A stored fraction can put a note off the edge of a narrower window, so positions are
+        // capped here too — in CSS, so they keep up with a resize.
         left: `min(${x * 100}%, calc(100% - ${w}px))`,
-        // A note grown taller than the window is held to the window and scrolls after all —
-        // in CSS rather than in the numbers above, so it keeps up with a window being resized.
         top: `max(0px, min(${y * 100}%, calc(100% - ${h}px)))`,
         width: w,
         height: `min(${h}px, 100%)`,
         zIndex: busy ? 4 : 3,
-        // The pomodoro's material — same fill, same lit edge, same shadows — but cut thinner.
-        // The panel is a control being read at a glance and can afford to fog what is under
-        // it; a note is written into and read closely, so its glass clears a little. See
-        // `BODY_BLUR`.
+        // The pomodoro's material, cut thinner — see `BODY_BLUR`.
         background: 'var(--glass)',
         backdropFilter: BODY_BLUR,
         WebkitBackdropFilter: BODY_BLUR,
         border: '1px solid var(--glass-edge)',
         borderRadius: RADIUS,
-        // Parked, then picked up. The lift is the panel's, so a note being carried and a panel
-        // being carried sit at the same height off the screen.
+        // Parked, then picked up — the panel's lift, so both sit at the same height in hand.
         boxShadow: busy ? 'var(--glass-lift)' : 'var(--glass-shadow)',
         display: 'flex',
         flexDirection: 'column',
         padding: `${PAD_TOP}px ${PAD_X}px ${PAD_BOTTOM}px`,
-        // Arrives the way the pomodoro does, which is most of what makes a new note read as
-        // having been set down rather than switched on.
         animation: 'glassIn 260ms cubic-bezier(0.22, 1.15, 0.36, 1)',
       }}
     >
@@ -272,26 +236,23 @@ function NoteCard({
           alignItems: 'center',
           gap: 6,
           flexShrink: 0,
-          // Out to the card's inner edges rather than sitting inside its padding: a bar held
-          // off the sides would read as a patch of fog floating on the note instead of as the
-          // top of the pane. The negative margins undo the card's padding, and the bar puts
-          // the same padding back on its own account.
+          // Out to the card's inner edges: the negative margins undo the card's padding, and
+          // the bar puts the same padding back on its own account.
           margin: `${-PAD_TOP}px ${-PAD_X}px ${HEAD_GAP}px`,
           padding: `${PAD_TOP}px ${PAD_X}px ${HEAD_PAD_B}px`,
           // No height: the row is as tall as the disc in it, and with `box-sizing: border-box`
-          // a fixed height here would be eaten by the padding above.
+          // a fixed height would be eaten by the padding above.
           //
-          // A point inside the card's own corner, which is what a radius nested behind a 1px
-          // border has to be to stay concentric with it.
+          // A point inside the card's radius, which is what a corner nested behind a 1px border
+          // has to be to stay concentric with it.
           borderTopLeftRadius: RADIUS - 1,
           borderTopRightRadius: RADIUS - 1,
           backdropFilter: HEAD_BLUR,
           WebkitBackdropFilter: HEAD_BLUR,
-          // A little more white than the card under it, so the denser blur has something to
-          // read against — frosting alone is nearly invisible over a backdrop this even.
+          // A little more white than the card, so the denser blur has something to read
+          // against — frosting alone is nearly invisible over a backdrop this even.
           background: 'rgba(255, 255, 255, 0.18)',
-          // Where the two thicknesses meet. Lit rather than ruled: glass shows a join as a
-          // highlight catching the edge, not as a line drawn across it.
+          // The join between the two thicknesses, lit rather than ruled.
           borderBottom: '1px solid rgba(255, 255, 255, 0.42)',
         }}
       >
@@ -304,8 +265,7 @@ function NoteCard({
           style={{
             flex: 1,
             cursor: drag ? 'grabbing' : 'grab',
-            // An rgba ink rather than `--faint`, which is a solid mixed for the old card grey
-            // and goes nearly invisible over glass this light.
+            // An rgba ink: `--faint` is mixed for an opaque card and vanishes over glass.
             color: 'rgba(31, 31, 29, 0.32)',
             fontSize: 11,
             letterSpacing: '0.2em',
@@ -316,7 +276,6 @@ function NoteCard({
         >
           ···
         </span>
-        {/* The pomodoro's dismiss at the note's scale — the same disc, the same states. */}
         <GlassCloseButton size={HEAD_H} label="Delete note" onClick={() => onRemove(note.id)} />
       </div>
       <textarea
@@ -331,8 +290,8 @@ function NoteCard({
         }}
         placeholder="Note"
         style={{
-          // Sized outright rather than by `flex: 1`, which would ignore the height the
-          // measurement above sets. It still gives way when the window holds the card short.
+          // Sized outright rather than by `flex: 1`, which would ignore the measurement above.
+          // It still gives way when the window holds the card short.
           flex: '0 1 auto',
           height: h - CHROME,
           minHeight: 0,
@@ -340,15 +299,9 @@ function NoteCard({
           border: 'none',
           outline: 'none',
           resize: 'none',
-          // Named rather than inherited: the focus screen sets itself in DM Mono, and a note is
-          // the user's own words rather than part of that screen's furniture. Set in the app's
-          // face, at reading size, and in the case it was typed in — a note is a sentence
-          // someone wrote, not a label, and tracked-out mono caps read as the latter.
-          //
-          // Face, weight, size and tracking are the player's, so the task being worked on and
-          // the notes taken against it are the same writing rather than two kinds of it. The
-          // leading is the one thing held back: the player is a single clipped line where it
-          // never shows, and 1.3 on text that wraps would set a note tight.
+          // The player's face, weight, size and tracking, so a task and the notes against it
+          // are the same writing. The leading is the one thing held back: the player is a
+          // single clipped line, and 1.3 would set wrapped text tight.
           fontFamily: APP_FONT,
           fontSize: 14,
           letterSpacing: '0.02em',
@@ -358,7 +311,6 @@ function NoteCard({
         }}
       />
 
-      {/* One strip per edge, sitting over the border rather than over the writing area. */}
       {HANDLES.map(({ dir: which, cursor, style }) => (
         <span
           key={which}
@@ -366,10 +318,8 @@ function NoteCard({
           style={{ position: 'absolute', cursor, touchAction: 'none', ...style }}
         />
       ))}
-      {/* The corner, which takes both axes at once. Invisible like the edges: the card is a
-          pane of glass, and a mark printed in its corner was the one thing on it that read as
-          drawn onto the surface rather than as part of it. What is left is the `nwse-resize`
-          cursor, which is the affordance the edges already rely on. */}
+      {/* The corner, taking both axes at once. Invisible like the edges — the `nwse-resize`
+          cursor is the affordance. */}
       <span
         {...handleProps('se')}
         title="Drag to resize"

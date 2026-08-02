@@ -5,36 +5,22 @@ import type { MutationCtx } from './_generated/server';
 import { ownTask, userId } from './helpers';
 import type { Ctx } from './helpers';
 
-/** Longest note the server will store. The textarea caps typing at the same length. */
+/** Mirrored by `NOTE_MAX` in `src/types.ts`, which caps typing at the same length. */
 const NOTE_MAX = 2000;
 
-/**
- * How many notes one task may carry. A ceiling rather than a design constraint: it keeps
- * `forTask` bounded, and a task with fifty notes over it is already unusable.
- */
+/** Keeps `forTask` bounded. */
 const NOTE_LIMIT = 50;
 
-/**
- * The size a note is created at, and the smallest it can be dragged to. A note below this
- * holds so little text that it stops being readable at the app's type size.
- */
+/** The size a note is created at, and the smallest it can be dragged to. */
 const NOTE_MIN_W = 188;
 const NOTE_MIN_H = 104;
 
-/** A note may not be resized past this. Well beyond any window it would be read in. */
 const NOTE_MAX_SIDE = 4000;
 
-/**
- * A stored position is a fraction of the overlay. Clamped on the way in as well as in the
- * drag: a position outside the overlay would put the note somewhere the user cannot reach
- * to drag it back.
- */
+/** Positions are fractions of the overlay; one outside it would put a note out of reach. */
 const frac = (n: number) => Math.min(1, Math.max(0, n));
 
-/**
- * Strips `userId`, `taskId` and `_creationTime` — the client has all three in hand — and
- * fills in the size of a note that has never been resized, so the client sees numbers.
- */
+/** Strips what the client already has, and fills in the size of an unresized note. */
 const view = (n: Doc<'notes'>) => ({
   id: n._id,
   text: n.text,
@@ -69,9 +55,8 @@ export const forTask = query({
 });
 
 /**
- * Adds an empty note. The position is the server's to pick: each new note steps down and
- * to the right of the last so it lands beside its neighbours rather than exactly on them,
- * in a column down the left where the timer and the player are not.
+ * Adds an empty note. Each one steps down and to the right of the last so it lands beside its
+ * neighbours rather than on them, in a column clear of the timer and the player.
  */
 export const add = mutation({
   args: { taskId: v.id('tasks') },
@@ -90,7 +75,7 @@ export const add = mutation({
   },
 });
 
-/** Replaces the whole text. Focus mode debounces, so this lands a few times per edit. */
+/** Focus mode debounces, so this lands a few times per edit. */
 export const setText = mutation({
   args: { id: v.id('notes'), text: v.string() },
   handler: async (ctx, { id, text }) => {
@@ -110,11 +95,7 @@ export const move = mutation({
   },
 });
 
-/**
- * Written once when a resize handle is released, on the same terms as `move`. It carries a
- * position as well as a size: dragging the left or top edge holds the opposite edge still,
- * which moves the note's own corner.
- */
+/** Carries a position as well as a size: a left or top edge moves the note's own corner. */
 export const resize = mutation({
   args: { id: v.id('notes'), x: v.number(), y: v.number(), w: v.number(), h: v.number() },
   handler: async (ctx, { id, x, y, w, h }) => {

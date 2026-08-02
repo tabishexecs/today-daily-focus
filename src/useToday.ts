@@ -7,14 +7,12 @@ import { FOCUS_TOTAL } from './types';
 import type { Note, NoteId, PanelPos, StoredTask, Task, TaskId, UiState } from './types';
 
 /**
- * Which task sat at the centre of the band when we last stopped scrolling. Stored as an id,
- * not a pixel offset, so it survives a breakpoint change and keeps pointing at the same task
- * when work is added above it.
+ * Which task the band was centred on last. An id rather than a pixel offset, so it survives a
+ * breakpoint change and keeps pointing at the same task when work is added above it.
  *
- * This is the one thing still kept in `localStorage`: it is where *this* screen is looking,
- * so syncing it would make one device scroll another. Namespaced by Clerk user id so two
- * accounts in the same browser keep separate positions. Tasks themselves live in Convex; the
- * old `today.v2:<userId>` task payloads are not read or migrated.
+ * This and the panel position below are the only things still in `localStorage`: both describe
+ * where *this* screen is looking, so syncing them would make one device scroll another. Keyed
+ * by Clerk user id so two accounts in a browser stay separate.
  */
 const anchorKey = (userId: string) => `today.v2:${userId}.anchor`;
 
@@ -26,18 +24,9 @@ function readAnchor(userId: string): string | null {
   }
 }
 
-/**
- * Where the pomodoro panel was left. Kept next to the anchor above and for the same reason: it
- * describes this screen rather than this account's work, and a panel dragged clear of something
- * on a wide monitor would land somewhere arbitrary on a laptop that synced it. Tasks and notes
- * are the things worth carrying between devices; where a floating pane sits is not.
- */
 const panelKey = (userId: string) => `today.v2:${userId}.pomodoro`;
 
-/**
- * Anything at all can be under a storage key — an older version of this app, another tab, a
- * hand-edited value — so the stored pair is checked before it is believed rather than cast.
- */
+/** Anything at all can be under a storage key, so the stored pair is checked, not cast. */
 function readPanelPos(userId: string): PanelPos | null {
   try {
     const raw = localStorage.getItem(panelKey(userId));
@@ -45,8 +34,7 @@ function readPanelPos(userId: string): PanelPos | null {
     const { x, y } = JSON.parse(raw) as Record<string, unknown>;
     if (typeof x !== 'number' || typeof y !== 'number') return null;
     if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    // Fractions of the window, so anything outside that range never described a position on
-    // screen. The panel is held inside the window again when it is placed.
+    // Fractions of the window: anything outside that never described a position on screen.
     return { x: Math.min(Math.max(x, 0), 1), y: Math.min(Math.max(y, 0), 1) };
   } catch {
     return null;
@@ -54,9 +42,8 @@ function readPanelPos(userId: string): PanelPos | null {
 }
 
 /**
- * Ids minted client-side for a task that has been captured but not yet acknowledged by the
- * server. They are never real document ids, so anything that would send one back to Convex
- * checks this first rather than failing validation a moment later.
+ * Ids minted for a task captured but not yet acknowledged by the server. They are never real
+ * document ids, so anything that would send one back to Convex checks this first.
  */
 const optimisticId = () => `optimistic:${crypto.randomUUID()}` as TaskId;
 const isOptimistic = (id: TaskId) => id.startsWith('optimistic:');
@@ -72,30 +59,28 @@ function initialUiState(userId: string): UiState {
     focusPhase: 'focus',
     focusLeft: FOCUS_TOTAL,
     pomodoroOpen: false,
-    // Read once, here rather than on the panel's mount: the panel comes and goes with the
-    // button that toggles it, and storage should be touched on startup, not on every open.
+    // Read here rather than on the panel's mount: the panel comes and goes with the button
+    // that toggles it, and storage should be touched on startup.
     pomodoroPos: readPanelPos(userId),
     compact: typeof window !== 'undefined' && window.innerWidth < 720,
   };
 }
 
 /**
- * @param userId Clerk user id, used only to key what this browser keeps to itself — the scroll
- *   anchor and the pomodoro panel's position. Task scoping is the
- *   server's job now — `api.tasks.*` reads the subject off the verified JWT, so the browser
- *   never names the account whose rows it wants. The caller still remounts this hook's owner
- *   on change (via `key`), which resets in-flight UI state on an account switch.
+ * @param userId Clerk user id, used only to key what this browser keeps to itself. Task
+ *   scoping is the server's: `api.tasks.*` reads the subject off the verified JWT, so the
+ *   browser never names the account whose rows it wants.
  */
 export function useToday(userId: string) {
   const [state, dispatch] = useReducer(reducer, userId, initialUiState);
 
-  // `undefined` while the first result is in flight; every later change to the stream —
-  // including one made on another device — pushes a new array through here.
+  // `undefined` while the first result is in flight; every later change — including one made
+  // on another device — pushes a new array through here.
   const stored = useQuery(api.tasks.list);
   const loading = stored === undefined;
 
-  // Optimistic updates keep every interaction instant: the round trip is short, but the
-  // strike animation and the capture bar both read as broken if the list waits for it.
+  // Optimistic updates keep every interaction instant: the round trip is short, but the strike
+  // animation and the capture bar both read as broken if the list waits for it.
   const addTask = useMutation(api.tasks.add).withOptimisticUpdate((store, { text }) => {
     const current = store.getQuery(api.tasks.list, {});
     if (current === undefined) return;
@@ -129,15 +114,15 @@ export function useToday(userId: string) {
     [stored, state.striking],
   );
 
-  // Notes belong to the focused task, so nothing is subscribed until there is one — and not
-  // to a task the server has never seen, whose id would fail validation.
+  // Notes belong to the focused task, so nothing is subscribed until there is one — and not to
+  // a task the server has never seen, whose id would fail validation.
   const noteTaskId =
     state.focusId != null && !isOptimistic(state.focusId) ? state.focusId : undefined;
   const storedNotes = useQuery(api.notes.forTask, noteTaskId ? { taskId: noteTaskId } : 'skip');
   const notes: Note[] = useMemo(() => storedNotes ?? [], [storedNotes]);
 
-  // Keep refs to the latest values so document-level listeners and timeouts read current
-  // state without re-subscribing.
+  // Refs to the latest values, so document-level listeners and timeouts read current state
+  // without re-subscribing.
   const stateRef = useRef(state);
   stateRef.current = state;
   const tasksRef = useRef(tasks);
@@ -148,9 +133,8 @@ export function useToday(userId: string) {
   const initialAnchorId = useRef(readAnchor(userId)).current;
 
   /**
-   * Rewrites the focused task's note list in the local cache. The mutations below carry only
-   * a note id, so the query to patch is the one for whatever task is in focus — the only
-   * note list on screen, and the only one they can be called from.
+   * Rewrites the focused task's note list in the local cache. The mutations below carry only a
+   * note id, so the query to patch is the one for whatever task is in focus.
    */
   const patchNotes = useCallback((store: OptimisticLocalStore, fn: (notes: Note[]) => Note[]) => {
     const taskId = stateRef.current.focusId;
@@ -168,13 +152,12 @@ export function useToday(userId: string) {
     patchNotes(store, (notes) => notes.map((n) => (n.id === id ? { ...n, text } : n))),
   );
 
-  // Without this the note would jump back to where it was picked up for the length of the
-  // round trip, since the card follows the stored position once the drag ends.
+  // Without these the card would jump back to where the gesture started for the length of the
+  // round trip, since it follows the stored geometry once the pointer is released.
   const moveNoteTo = useMutation(api.notes.move).withOptimisticUpdate((store, { id, x, y }) =>
     patchNotes(store, (notes) => notes.map((n) => (n.id === id ? { ...n, x, y } : n))),
   );
 
-  // Same reasoning as `move`: the card follows the stored geometry once the handle is let go.
   const resizeNoteTo = useMutation(api.notes.resize).withOptimisticUpdate(
     (store, { id, x, y, w, h }) =>
       patchNotes(store, (notes) => notes.map((n) => (n.id === id ? { ...n, x, y, w, h } : n))),
@@ -196,11 +179,7 @@ export function useToday(userId: string) {
     [userId],
   );
 
-  /**
-   * Called once when the panel is dropped, so the write is per drag rather than per frame.
-   * Storage is written alongside the dispatch rather than from an effect watching the state —
-   * the same shape `saveAnchor` has, and it keeps the reducer free of the browser.
-   */
+  /** Called once when the panel is dropped, so the write is per drag rather than per frame. */
   const movePomodoro = useCallback(
     (x: number, y: number) => {
       dispatch({ type: 'MOVE_POMODORO', x, y });
@@ -215,9 +194,9 @@ export function useToday(userId: string) {
 
   // --- Multi-step orchestrations (timeouts live here, not in the reducer) ---
 
-  // Note text is written a beat after typing stops rather than per keystroke. `pendingNotes`
-  // holds the last text typed into each edited note, so every path that leaves the notes —
-  // exiting focus, closing the tab, unmounting — can send them early instead of dropping them.
+  // Note text is written a beat after typing stops. `pendingNotes` holds the last text typed
+  // into each edited note, so every path that leaves the notes — exiting focus, closing the
+  // tab, unmounting — can send them early instead of dropping them.
   const noteTimer = useRef<number | null>(null);
   const pendingNotes = useRef(new Map<NoteId, string>());
 
@@ -229,8 +208,8 @@ export function useToday(userId: string) {
     const pending = [...pendingNotes.current];
     pendingNotes.current.clear();
     for (const [id, text] of pending) {
-      // A note can be deleted mid-edit (another tab, another device, the × on this one).
-      // Losing its text is the right outcome there; an unhandled rejection is not.
+      // A note can be deleted mid-edit. Losing its text is the right outcome there; an
+      // unhandled rejection is not.
       void saveNoteText({ id, text }).catch(() => {});
     }
   }, [saveNoteText]);
@@ -252,7 +231,7 @@ export function useToday(userId: string) {
 
   const removeNote = useCallback(
     (id: NoteId) => {
-      // Drop any unwritten text for this note rather than resurrecting it after the delete.
+      // Drop any unwritten text rather than resurrecting it after the delete.
       pendingNotes.current.delete(id);
       void deleteNote({ id });
     },
@@ -311,8 +290,7 @@ export function useToday(userId: string) {
     (id: TaskId) => {
       if (isOptimistic(id)) return;
       if (stateRef.current.focusId === id) {
-        // Drop the pending note text instead of flushing it: the task, and with it every
-        // note on it, is about to be gone.
+        // Don't flush: the task, and with it every note on it, is about to be gone.
         pendingNotes.current.clear();
         dispatch({ type: 'EXIT_FOCUS' });
       }
@@ -331,8 +309,7 @@ export function useToday(userId: string) {
     dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
   }, []);
 
-  // Reachable from the Enter key and from the keycap that stands for it, so the taking of the
-  // text lives here rather than inside the key handler.
+  // Reachable from the Enter key and from the keycap that stands for it.
   const submitCapture = useCallback(() => {
     const text = (stateRef.current.captureText || '').trim();
     closeCapture();
@@ -347,15 +324,14 @@ export function useToday(userId: string) {
     [submitCapture, closeCapture],
   );
 
-  // The focused task can vanish under us — deleted on another device, or on this one from a
-  // second tab. Without this the card unmounts (App can't find it) while the timer keeps
-  // running against an id that no longer exists.
+  // The focused task can vanish under us — deleted on another device, or in a second tab.
+  // Without this the card unmounts while the timer keeps running against a gone id.
   useEffect(() => {
     if (loading || state.focusId == null) return;
     if (!tasks.some((t) => t.id === state.focusId)) dispatch({ type: 'EXIT_FOCUS' });
   }, [loading, state.focusId, tasks]);
 
-  // --- Global listeners: outside-click to dismiss capture, resize ---
+  // Outside-click to dismiss capture, and the compact breakpoint.
   useEffect(() => {
     const onDocDown = (e: PointerEvent) => {
       if (!stateRef.current.captureOpen) return;
@@ -373,8 +349,8 @@ export function useToday(userId: string) {
     };
   }, []);
 
-  // A note being typed as the tab closes or the account switches still has to land. Read the
-  // flush through a ref so the effect can stay mounted for the hook's whole life.
+  // A note being typed as the tab closes still has to land. Read through a ref so the effect
+  // can stay mounted for the hook's whole life.
   const flushRef = useRef(flushNotes);
   flushRef.current = flushNotes;
   useEffect(() => {
@@ -386,7 +362,6 @@ export function useToday(userId: string) {
     };
   }, []);
 
-  // --- Pomodoro interval ---
   useEffect(() => {
     const id = setInterval(() => dispatch({ type: 'TICK' }), 1000);
     return () => clearInterval(id);
