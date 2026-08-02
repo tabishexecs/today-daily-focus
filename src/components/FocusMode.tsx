@@ -81,10 +81,15 @@ export function FocusMode({
         position: 'fixed',
         inset: 0,
         zIndex: 80,
-        // The page's own colour, flat. White pooled behind the player here before, which lit the
-        // middle of the screen and left the edges on the page's grey — two controls in the same
-        // filled black read as two different blacks depending where they sat in that falloff.
-        background: 'var(--bg)',
+        // The page's own colour and ruling, even across the screen. White pooled behind the
+        // player here before, which lit the middle of the screen and left the edges on the
+        // page's grey — two controls in the same filled black read as two different blacks
+        // depending where they sat in that falloff. The grid is anchored to the viewport here
+        // and to the page behind it, and both start at the window's corner, so the lines stay
+        // put as the screen comes over: the same ruling, not a second one.
+        backgroundColor: 'var(--bg)',
+        backgroundImage: 'var(--grid)',
+        backgroundSize: 'var(--grid-cell) var(--grid-cell)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
