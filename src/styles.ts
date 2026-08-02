@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 export const APP_FONT = "'Inter Tight','Helvetica Neue',Arial,sans-serif";
 
 /** `TASK_SIZE` is exported because the stream scales its strike rule off it. */
-export const TASK_SIZE = 28;
+export const TASK_SIZE = 20;
 const TASK_WEIGHT = 500;
 const TASK_LEADING = 1.25;
 

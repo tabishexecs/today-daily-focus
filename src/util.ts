@@ -5,12 +5,6 @@ export const fmt = (sec: number): string => {
   return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
 };
 
-const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-export const dateStr = (now = new Date()): string =>
-  `${WD[now.getDay()]} · ${MO[now.getMonth()]} ${now.getDate()}`;
-
 /** Shared by every full-width surface so they line up on one margin. */
 export const sidePadFor = (compact: boolean): string =>
   compact ? '22px' : 'clamp(46px,7vw,120px)';
