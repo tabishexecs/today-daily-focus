@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Task, TaskId } from '../types';
-import { roman } from '../util';
+import { TASK_SIZE, primaryIconBtn, taskText } from '../styles';
 import { PlayIcon } from './icons';
 
 interface Props {
@@ -18,12 +18,39 @@ interface Props {
 
 /** Rows legible at rest. The whole point of the app. */
 const BAND = 3;
-/** Rows the scroller shows, band plus the ghosts framing it. Must be odd and > BAND. */
-const VIS = 7;
+/**
+ * Rows the scroller shows, band plus the ghosts framing it. Must be odd and > BAND — so 5 is
+ * the floor, one ghost each side. Rows are tall enough now (see below) that seven of them
+ * would stand the stream taller than a laptop window and push the band off-centre.
+ */
+const VIS = 5;
 const VIS_COMPACT = 5;
-/** Row height is the padding: content is centred, so this sets the gap to each divider. */
-const ROW_H = 64;
-const ROW_H_COMPACT = 56;
+
+/**
+ * A title is set in `taskText` from `styles.ts`, shared with the focus screen's clock. One size
+ * at every width: 28px still fits a useful line on a phone, which is what let the compact
+ * variant go.
+ *
+ * A 2px rule is a hairline against display text, so the strike is kept in step with the title.
+ */
+const STRIKE_H = Math.round(TASK_SIZE / 14);
+
+/**
+ * Row height is the padding: content is centred, so with no rule between rows this is the only
+ * thing separating one task from the next. The gap it leaves has to beat the leading *inside*
+ * a title, or a two-line title and its neighbour read as one block — the worst case is two
+ * clamped lines, `TASK_SIZE * TASK_LEADING * 2` or 70px, leaving 42px against a 35px leading.
+ * Single-line titles, which is most of them, get the whole 77px.
+ */
+const ROW_H = 112;
+const ROW_H_COMPACT = 108;
+
+/**
+ * Vertical slack around a title, so completing a task doesn't ask for a hit on the glyphs
+ * themselves. Only vertical: the horizontal edges are exactly where the target has to stop,
+ * since the gap on the left is the run-up to the play button.
+ */
+const HIT_PAD = 14;
 
 /** Idle time that counts as "stopped scrolling". */
 const SETTLE_MS = 200;
@@ -63,15 +90,6 @@ export function TaskStream({
   const restored = useRef(false);
   /** Set once the list has actually been rendered, so the first delivery isn't "growth". */
   const seenList = useRef(false);
-
-  // Roman numerals grow with the list (XVIII is five glyphs), and every row needs the same
-  // gutter or the titles stop lining up — so size it to the widest numeral actually shown.
-  // 8px is a DM Mono glyph at 11px plus its tracking.
-  const numColW = useMemo(() => {
-    let glyphs = 1;
-    for (let k = 1; k <= tasks.length; k++) glyphs = Math.max(glyphs, roman(k).length);
-    return Math.max(compact ? 28 : 34, glyphs * 8 + 4);
-  }, [tasks.length, compact]);
 
   // Restore last session's position before the first paint, so there's no jump from the top.
   // Runs once: re-running on later task changes would yank the view back to the old anchor.
@@ -132,7 +150,7 @@ export function TaskStream({
   };
 
   // Hold the stream's height while the first query is in flight, but say nothing: flashing
-  // "NOTHING YET" at someone who has fifty tasks is worse than a beat of empty space.
+  // "Nothing yet" at someone who has fifty tasks is worse than a beat of empty space.
   if (loading) return <div style={{ height: viewH }} />;
 
   if (tasks.length === 0) {
@@ -146,11 +164,11 @@ export function TaskStream({
           gap: 14,
         }}
       >
-        <div style={{ fontSize: 11, letterSpacing: '0.28em', color: 'var(--ink)', fontWeight: 500 }}>
-          NOTHING YET
+        <div style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--ink)', fontWeight: 500 }}>
+          Nothing yet
         </div>
-        <div style={{ fontSize: 11, letterSpacing: '0.28em', color: 'var(--muted)' }}>
-          ADD WORK TO BEGIN
+        <div style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--muted)' }}>
+          Add work to begin
         </div>
       </div>
     );
@@ -184,120 +202,119 @@ export function TaskStream({
             <div
               key={t.id}
               data-taskrow=""
-              onClick={t.done ? undefined : () => onComplete(t.id)}
               style={{
                 height: rowH,
                 scrollSnapAlign: 'center',
-                display: 'grid',
-                gridTemplateColumns: `${numColW}px 1fr`,
-                columnGap: 26,
+                display: 'flex',
                 alignItems: 'center',
-                borderTop: i === 0 ? 'none' : '1px solid var(--divider-task)',
+                gap: 18,
                 padding: '0 4px',
-                cursor: t.done ? 'default' : 'pointer',
                 opacity,
                 // Unreadable rows are also untouchable.
                 pointerEvents: inBand ? 'auto' : 'none',
                 transition: 'opacity 240ms ease',
               }}
             >
-              <div
+              <button
+                data-primarybtn=""
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFocus(t.id);
+                }}
+                aria-label="Focus on this task"
                 style={{
-                  fontSize: 11,
-                  // Tighter than the old two-digit gutter: XVIII is five glyphs wide.
-                  letterSpacing: '0.12em',
-                  color: 'var(--muted)',
+                  ...primaryIconBtn,
+                  // A finished task has nothing left to focus on, but the button keeps its
+                  // space so every title still starts on one left edge — the job the numeral
+                  // gutter used to do. `hidden` also takes it out of the tab order.
+                  visibility: t.done ? 'hidden' : 'visible',
                 }}
               >
-                {roman(i + 1)}
-              </div>
+                <PlayIcon size={14} />
+              </button>
 
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 16 }}>
+              {/* The title is the target, not the row: a row-wide hit area turns the run-up to
+                  the play button into "done", and the two mean opposite things. */}
+              <span
+                onClick={t.done ? undefined : () => onComplete(t.id)}
+                style={{
+                  ...taskText,
+                  padding: `${HIT_PAD}px 0`,
+                  cursor: t.done ? 'default' : 'pointer',
+                  // Greys out as it is struck. Keyed on the same condition as the line below
+                  // and given the same duration, so the colour drains at the pace the strike
+                  // travels rather than snapping the moment the write lands.
+                  color: t.striking || t.done ? 'var(--muted)' : 'var(--ink)',
+                  transition: 'color 480ms cubic-bezier(0.4,0,0.2,1)',
+                  position: 'relative',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {t.text}
+                {/* A second, invisible copy of the title laid exactly over the first, carrying
+                    nothing but its line-through. `text-decoration` is the one way to get a rule
+                    the browser paints *over* the glyphs — a background sits under them and a
+                    bar of our own would sit under the text too — and it strikes every line of a
+                    wrapped title at the right height without us measuring anything.
+
+                    It has to be a copy because the sweep is a reveal: the line can't be wiped
+                    on without also wiping on the words it belongs to. Clipping this layer from
+                    the right uncovers the rule alone, which is the 480ms travel the struck-out
+                    bar used to do. Same text, same box, so it wraps identically. */}
                 <span
+                  aria-hidden="true"
                   style={{
-                    fontSize: 11,
-                    lineHeight: 1.6,
-                    // Done tasks keep full ink — the strike line carries the state on its own.
-                    color: 'var(--ink)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.12em',
-                    position: 'relative',
+                    position: 'absolute',
+                    // Inset by the hit padding, so the copy sits on the content box the real
+                    // text occupies rather than the padded one it would otherwise start at.
+                    inset: `${HIT_PAD}px 0`,
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
+                    color: 'transparent',
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                    textDecorationLine: 'line-through',
+                    textDecorationColor: 'var(--strike)',
+                    textDecorationThickness: STRIKE_H,
+                    clipPath: `inset(0 ${t.striking || t.done ? 0 : 100}% 0 0)`,
+                    transition: 'clip-path 480ms cubic-bezier(0.4,0,0.2,1)',
                   }}
                 >
                   {t.text}
-                  <span
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: '0.77em',
-                      height: 2,
-                      background: 'var(--strike)',
-                      width: t.striking || t.done ? '100%' : '0%',
-                      transition: 'width 480ms cubic-bezier(0.4,0,0.2,1)',
-                    }}
-                  />
                 </span>
+              </span>
 
-                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {!t.done && (
-                    <button
-                      data-taskplay=""
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onFocus(t.id);
-                      }}
-                      aria-label="Focus on this task"
-                      style={{
-                        opacity: 0,
-                        transition: 'opacity 180ms ease, color 180ms ease',
-                        flexShrink: 0,
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--muted)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '2px 4px',
-                        fontFamily: 'inherit',
-                        fontSize: 11,
-                        letterSpacing: '0.24em',
-                      }}
-                    >
-                      <PlayIcon />
-                      FOCUS
-                    </button>
-                  )}
-                  <button
-                    data-taskdel=""
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemove(t.id);
-                    }}
-                    aria-label="Remove"
-                    style={{
-                      opacity: 0,
-                      transition: 'opacity 180ms ease',
-                      flexShrink: 0,
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      fontSize: 11,
-                      letterSpacing: '0.2em',
-                      color: 'var(--muted)',
-                      padding: '2px 4px',
-                      lineHeight: 1,
-                    }}
-                  >
-                    ✕
-                  </button>
-                </span>
-              </div>
+              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  data-taskdel=""
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(t.id);
+                  }}
+                  aria-label="Remove"
+                  style={{
+                    opacity: 0,
+                    transition: 'opacity 180ms ease',
+                    flexShrink: 0,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: 14,
+                    letterSpacing: '0.2em',
+                    color: 'var(--muted)',
+                    padding: '2px 4px',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
             </div>
           );
         })}

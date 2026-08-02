@@ -1,4 +1,6 @@
 import type { RefObject } from 'react';
+import { primaryBtn } from '../styles';
+import { EnterIcon } from './icons';
 
 interface Props {
   open: boolean;
@@ -7,9 +9,45 @@ interface Props {
   inputRef: RefObject<HTMLInputElement | null>;
   onChange: (text: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  onSubmit: () => void;
 }
 
-export function CaptureBar({ open, text, sidePad, inputRef, onChange, onKeyDown }: Props) {
+/** A keycap, the way a command palette prints its shortcuts. */
+function Key({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <kbd
+      aria-label={label}
+      title={label}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 30,
+        height: 30,
+        padding: '0 9px',
+        border: '1px solid var(--surface-edge)',
+        borderRadius: 8,
+        fontFamily: 'inherit',
+        fontSize: 14,
+        lineHeight: 1,
+        letterSpacing: '0.04em',
+        color: 'var(--faint)',
+      }}
+    >
+      {children}
+    </kbd>
+  );
+}
+
+export function CaptureBar({
+  open,
+  text,
+  sidePad,
+  inputRef,
+  onChange,
+  onKeyDown,
+  onSubmit,
+}: Props) {
   return (
     <div
       data-capture="1"
@@ -38,24 +76,20 @@ export function CaptureBar({ open, text, sidePad, inputRef, onChange, onKeyDown 
     >
       <span
         style={{
-          fontSize: 11,
-          letterSpacing: '0.28em',
-          color: 'var(--muted)',
+          color: 'var(--primary)',
+          fontSize: 16,
+          lineHeight: 1,
           flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 9,
         }}
       >
-        <span style={{ color: 'var(--primary)', fontSize: 13, lineHeight: 1 }}>✱</span>
-        CAPTURE
+        ✱
       </span>
       <input
         ref={inputRef}
         value={text}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="A work for later"
+        placeholder="Add work to your ever-growing list"
         style={{
           flex: 1,
           minWidth: 0,
@@ -63,15 +97,28 @@ export function CaptureBar({ open, text, sidePad, inputRef, onChange, onKeyDown 
           border: 'none',
           outline: 'none',
           fontFamily: 'inherit',
-          fontSize: 11,
+          fontSize: 16,
+          fontWeight: 400,
           letterSpacing: '0.06em',
           color: 'var(--ink)',
           padding: '4px 0',
-          textTransform: 'uppercase',
         }}
       />
-      <span style={{ fontSize: 11, letterSpacing: '0.24em', color: 'var(--faint)', flexShrink: 0 }}>
-        <span style={{ color: 'var(--primary)' }}>ENTER</span> · ESC
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <button
+          type="button"
+          data-primarybtn="1"
+          aria-label="Enter"
+          title="Enter"
+          // The bar sits over the input; a press would take the focus off it on the way down.
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onSubmit}
+          // Flexed so the icon sits on the button's centre rather than on its text baseline.
+          style={{ ...primaryBtn, display: 'inline-flex', alignItems: 'center' }}
+        >
+          <EnterIcon />
+        </button>
+        <Key label="Escape">esc</Key>
       </span>
     </div>
   );

@@ -1,7 +1,8 @@
 import { Show, useClerk, useUser } from '@clerk/react';
 import { totalFor } from './types';
 import { useToday } from './useToday';
-import { sidePadFor } from './util';
+import { APP_FONT } from './styles';
+import { sidePadFor, topPadFor } from './util';
 import { TopBar } from './components/TopBar';
 import { TaskStream } from './components/TaskStream';
 import { CaptureBar } from './components/CaptureBar';
@@ -33,6 +34,7 @@ function Today({ userId }: { userId: string }) {
   const { signOut } = useClerk();
   const c = state.compact;
   const sidePad = sidePadFor(c);
+  const topPad = topPadFor(c);
 
   const focusTask = state.focusId != null ? tasks.find((t) => t.id === state.focusId) : null;
   const focusElapsed = totalFor(state.focusPhase) - state.focusLeft;
@@ -46,11 +48,12 @@ function Today({ userId }: { userId: string }) {
         // the window's centre — anything asymmetric here shifts the list by half of it.
         display: 'grid',
         gridTemplate: '1fr / 1fr',
-        // The same side padding the capture bar and the focus screen use, so all three line up.
-        padding: `${c ? '26px' : '54px'} ${sidePad}`,
+        // The same padding the capture bar and the focus screen use, so all three line up.
+        // Vertically symmetric, per the note above.
+        padding: `${topPad} ${sidePad}`,
         background: 'var(--bg)',
         color: 'var(--ink)',
-        fontFamily: "'DM Mono','Helvetica Neue',monospace",
+        fontFamily: APP_FONT,
         fontWeight: 400,
         overflowX: 'hidden',
         position: 'relative',
@@ -91,19 +94,25 @@ function Today({ userId }: { userId: string }) {
         inputRef={actions.inputRef}
         onChange={actions.setCaptureText}
         onKeyDown={actions.onCapKey}
+        onSubmit={actions.submitCapture}
       />
 
       {focusTask && (
         <FocusMode
           task={focusTask.text}
-          phase={state.focusPhase}
           running={state.focusRunning}
-          left={state.focusLeft}
           elapsed={focusElapsed}
+          phase={state.focusPhase}
+          left={state.focusLeft}
+          pomodoroOpen={state.pomodoroOpen}
+          pomodoroPos={state.pomodoroPos}
           sidePad={sidePad}
+          topPad={topPad}
           notes={notes}
           onToggle={actions.focusToggle}
           onReset={actions.focusReset}
+          onTogglePomodoro={actions.togglePomodoro}
+          onPomodoroMove={actions.movePomodoro}
           onComplete={actions.focusComplete}
           onExit={actions.exitFocus}
           onAddNote={actions.addNote}

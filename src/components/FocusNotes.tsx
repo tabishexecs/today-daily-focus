@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { NOTE_MAX, NOTE_MIN_W, NOTE_MIN_H } from '../types';
 import type { Note, NoteId } from '../types';
+import { APP_FONT } from '../styles';
+import { GlassCloseButton } from './GlassCloseButton';
 
 interface Props {
   notes: Note[];
@@ -52,17 +54,51 @@ interface Box {
   h: number;
 }
 
-/** The bar carrying the drag dots and the delete button, and the padding around everything. */
-const HEAD_H = 15;
-const PAD_TOP = 6;
-const PAD_BOTTOM = 9;
-const PAD_X = 10;
+/**
+ * The bar carrying the drag dots and the delete button, and the padding around everything.
+ * The bar is as tall as the disc in it, the way the pomodoro's header is; the padding is wider
+ * than a flat card wanted because glass needs air inside its corners to read as a pane rather
+ * than as a filled box.
+ */
+const HEAD_H = 24;
+const PAD_TOP = 8;
+const PAD_BOTTOM = 10;
+const PAD_X = 12;
+
+/**
+ * Smaller than the pomodoro's 26: the same continuous corner, but a note is a fraction of the
+ * panel's size and that radius on this box would curve away most of its short edge.
+ */
+const RADIUS = 16;
+
+/**
+ * Under the header bar: what the bar keeps inside its own bottom edge, then the clear gap to
+ * the first line of writing. The dots and the dismiss are the card's furniture and the text is
+ * what the card is for, so they are separated rather than stacked.
+ */
+const HEAD_PAD_B = 6;
+const HEAD_GAP = 5;
+
+/**
+ * A note is the one pane in the app made of two thicknesses of glass.
+ *
+ * The writing area is the clearer: a step back from the app's `--glass-blur`, so what is behind
+ * the note still comes through as something rather than as fog, and the surface under the words
+ * reads as thin. The header is the frostier, and gets there for free — its filter is applied to
+ * what the card has already blurred, because a backdrop is everything painted beneath the
+ * element, so the two compound and the bar carrying the furniture sits on denser glass than the
+ * part being written on. That is also why its saturation is barely raised: the body's is already
+ * in the picture, and asking twice pushes the colour past what the glass is pulling through.
+ */
+const BODY_BLUR = 'blur(24px) saturate(1.8)';
+const HEAD_BLUR = 'blur(26px) saturate(1.1)';
 
 /**
  * Everything in the card that is not the writing area. Added to the height the text needs to
  * get the height the card needs.
  */
-const CHROME = PAD_TOP + HEAD_H + PAD_BOTTOM + 2; // the two 1px borders
+const CHROME =
+  PAD_TOP + HEAD_H + HEAD_PAD_B + 1 + HEAD_GAP + PAD_BOTTOM + 2; // the bar's seam, then the two 1px borders
 
 function NoteCard({
   note,
@@ -210,17 +246,54 @@ function NoteCard({
         width: w,
         height: `min(${h}px, 100%)`,
         zIndex: busy ? 4 : 3,
-        background: 'var(--card)',
-        border: '1px solid var(--hairline-alt)',
-        boxShadow: busy ? 'var(--surface-shadow)' : '0 6px 18px -12px rgba(36, 33, 28, 0.5)',
+        // The pomodoro's material — same fill, same lit edge, same shadows — but cut thinner.
+        // The panel is a control being read at a glance and can afford to fog what is under
+        // it; a note is written into and read closely, so its glass clears a little. See
+        // `BODY_BLUR`.
+        background: 'var(--glass)',
+        backdropFilter: BODY_BLUR,
+        WebkitBackdropFilter: BODY_BLUR,
+        border: '1px solid var(--glass-edge)',
+        borderRadius: RADIUS,
+        // Parked, then picked up. The lift is the panel's, so a note being carried and a panel
+        // being carried sit at the same height off the screen.
+        boxShadow: busy ? 'var(--glass-lift)' : 'var(--glass-shadow)',
         display: 'flex',
         flexDirection: 'column',
         padding: `${PAD_TOP}px ${PAD_X}px ${PAD_BOTTOM}px`,
-        animation: 'wonIn 220ms ease',
+        // Arrives the way the pomodoro does, which is most of what makes a new note read as
+        // having been set down rather than switched on.
+        animation: 'glassIn 260ms cubic-bezier(0.22, 1.15, 0.36, 1)',
       }}
     >
       <div
-        style={{ display: 'flex', alignItems: 'center', gap: 6, height: HEAD_H, flexShrink: 0 }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          flexShrink: 0,
+          // Out to the card's inner edges rather than sitting inside its padding: a bar held
+          // off the sides would read as a patch of fog floating on the note instead of as the
+          // top of the pane. The negative margins undo the card's padding, and the bar puts
+          // the same padding back on its own account.
+          margin: `${-PAD_TOP}px ${-PAD_X}px ${HEAD_GAP}px`,
+          padding: `${PAD_TOP}px ${PAD_X}px ${HEAD_PAD_B}px`,
+          // No height: the row is as tall as the disc in it, and with `box-sizing: border-box`
+          // a fixed height here would be eaten by the padding above.
+          //
+          // A point inside the card's own corner, which is what a radius nested behind a 1px
+          // border has to be to stay concentric with it.
+          borderTopLeftRadius: RADIUS - 1,
+          borderTopRightRadius: RADIUS - 1,
+          backdropFilter: HEAD_BLUR,
+          WebkitBackdropFilter: HEAD_BLUR,
+          // A little more white than the card under it, so the denser blur has something to
+          // read against — frosting alone is nearly invisible over a backdrop this even.
+          background: 'rgba(255, 255, 255, 0.18)',
+          // Where the two thicknesses meet. Lit rather than ruled: glass shows a join as a
+          // highlight catching the edge, not as a line drawn across it.
+          borderBottom: '1px solid rgba(255, 255, 255, 0.42)',
+        }}
       >
         <span
           onPointerDown={onDragDown}
@@ -231,7 +304,9 @@ function NoteCard({
           style={{
             flex: 1,
             cursor: drag ? 'grabbing' : 'grab',
-            color: 'var(--faint)',
+            // An rgba ink rather than `--faint`, which is a solid mixed for the old card grey
+            // and goes nearly invisible over glass this light.
+            color: 'rgba(31, 31, 29, 0.32)',
             fontSize: 11,
             letterSpacing: '0.2em',
             lineHeight: 1,
@@ -241,24 +316,8 @@ function NoteCard({
         >
           ···
         </span>
-        <button
-          data-notedel
-          onClick={() => onRemove(note.id)}
-          aria-label="Delete note"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-            fontSize: 14,
-            lineHeight: 1,
-            color: 'var(--muted)',
-            opacity: 0.4,
-            padding: 0,
-          }}
-        >
-          ×
-        </button>
+        {/* The pomodoro's dismiss at the note's scale — the same disc, the same states. */}
+        <GlassCloseButton size={HEAD_H} label="Delete note" onClick={() => onRemove(note.id)} />
       </div>
       <textarea
         ref={area}
@@ -281,12 +340,19 @@ function NoteCard({
           border: 'none',
           outline: 'none',
           resize: 'none',
-          fontFamily: 'inherit',
-          // Matches the capture bar: this is the same act of writing something down.
-          fontSize: 11,
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          lineHeight: 1.6,
+          // Named rather than inherited: the focus screen sets itself in DM Mono, and a note is
+          // the user's own words rather than part of that screen's furniture. Set in the app's
+          // face, at reading size, and in the case it was typed in — a note is a sentence
+          // someone wrote, not a label, and tracked-out mono caps read as the latter.
+          //
+          // Face, weight, size and tracking are the player's, so the task being worked on and
+          // the notes taken against it are the same writing rather than two kinds of it. The
+          // leading is the one thing held back: the player is a single clipped line where it
+          // never shows, and 1.3 on text that wraps would set a note tight.
+          fontFamily: APP_FONT,
+          fontSize: 14,
+          letterSpacing: '0.02em',
+          lineHeight: 1.5,
           color: 'var(--ink)',
           padding: 0,
         }}
@@ -300,7 +366,10 @@ function NoteCard({
           style={{ position: 'absolute', cursor, touchAction: 'none', ...style }}
         />
       ))}
-      {/* The corner is the only handle that shows itself, and the only one taking both axes. */}
+      {/* The corner, which takes both axes at once. Invisible like the edges: the card is a
+          pane of glass, and a mark printed in its corner was the one thing on it that read as
+          drawn onto the surface rather than as part of it. What is left is the `nwse-resize`
+          cursor, which is the affordance the edges already rely on. */}
       <span
         {...handleProps('se')}
         title="Drag to resize"
@@ -310,24 +379,10 @@ function NoteCard({
           bottom: 0,
           width: 16,
           height: 16,
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'flex-end',
-          padding: 3,
           cursor: 'nwse-resize',
           touchAction: 'none',
         }}
-      >
-        <span
-          style={{
-            width: 0,
-            height: 0,
-            borderLeft: '6px solid transparent',
-            borderBottom: '6px solid var(--faint)',
-            pointerEvents: 'none',
-          }}
-        />
-      </span>
+      />
     </div>
   );
 }

@@ -117,7 +117,8 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
 
 ## Notes
 
-- **Design tokens** (colors, 11px DM Mono, tracking, spacing, radii, easings) come from the
+- **Design tokens** (colors, 14px Inter Tight — DM Mono on the focus screen — tracking, spacing,
+  radii, easings) come from the
   handoff and live as CSS custom properties in `index.css`. Keyframes `settle`, `rollUp`,
   `wonIn`, `focusIn`, and `pulse` are ported verbatim; `settle`, `rollUp`, and `wonIn` are
   currently unused, left in place as tokens.
@@ -167,7 +168,7 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   bare `a` / `input::placeholder` / `::selection` rules in `index.css` would otherwise repaint
   it in the product's design; each is scoped with `:not(.cl-rootBox *)`. Clerk's `fontFamily`
   variable defaults to `inherit`, so `.cl-rootBox` also resets typography to a neutral system
-  stack — without that, the card renders in DM Mono. Nothing is passed to `appearance`.
+  stack — without that, the card renders in Inter Tight. Nothing is passed to `appearance`.
 - **Per-user data** is enforced on the server: every function in `convex/tasks.ts` resolves
   the caller through `ctx.auth.getUserIdentity()` and filters or ownership-checks on it, so
   scoping no longer depends on the client getting a storage key right. `Today` is still
