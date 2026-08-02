@@ -11,16 +11,14 @@ interface Props {
   running: boolean;
   /** Time spent on this task, the clock the player shows. */
   elapsed: number;
-  /** The same pomodoro from the other end, for the panel: which phase, and how much is left. */
+  /** The same pomodoro from the other end: which phase, and how much is left. */
   phase: FocusPhase;
   left: number;
   pomodoroOpen: boolean;
-  /** Where the panel was last dropped, or null while it still sits in its corner. */
   pomodoroPos: PanelPos | null;
   sidePad: string;
   /** Space above the controls, so they land on the same line as the top bar they cover. */
   topPad: string;
-  /** Every note on the focused task, each carrying its own position. */
   notes: Note[];
   onToggle: () => void;
   onReset: () => void;
@@ -39,16 +37,10 @@ interface Props {
 /** Fades the tail of long task text as it approaches the play/pause button. */
 const TAIL_FADE = 'linear-gradient(to right, #000 calc(100% - 48px), transparent 100%)';
 
-/**
- * What the two lines inside the player share: the face, named outright because the focus screen
- * around them is DM Mono and they would otherwise inherit it, and the tracking. The size is not
- * shared — the task takes a step up from this, which is the base the clock keeps.
- */
+/** Shared by the player's two lines. The family is named because this screen is DM Mono. */
 const PLAYER_LINE: CSSProperties = {
   fontFamily: APP_FONT,
   fontSize: 13,
-  // Sentence case needs far less tracking than the all-caps this used to be, but Inter Tight
-  // is drawn close by default, so a touch goes back.
   letterSpacing: '0.02em',
 };
 
@@ -81,21 +73,17 @@ export function FocusMode({
         position: 'fixed',
         inset: 0,
         zIndex: 80,
-        // The page's own colour and ruling, even across the screen. White pooled behind the
-        // player here before, which lit the middle of the screen and left the edges on the
-        // page's grey — two controls in the same filled black read as two different blacks
-        // depending where they sat in that falloff. The grid is anchored to the viewport here
-        // and to the page behind it, and both start at the window's corner, so the lines stay
-        // put as the screen comes over: the same ruling, not a second one.
+        // Flat colour, so two controls in the same filled black read as one black wherever
+        // they sit. The grid matches the page behind: both tile from the window's corner, so
+        // the ruling stays put as this screen comes over.
         backgroundColor: 'var(--bg)',
         backgroundImage: 'var(--grid)',
         backgroundSize: 'var(--grid-cell) var(--grid-cell)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        // The focus screen keeps the mono the app was originally set in. Everything inside it
-        // inherits this — timer, state, task, notes — except the two buttons along the top,
-        // which pin their own family so they stay identical to "Add work" on the main screen.
+        // Everything inside inherits this except the buttons along the top, which pin their
+        // own family so they stay identical to "Add work" on the main screen.
         fontFamily: "'DM Mono','Helvetica Neue',monospace",
         animation: 'focusIn 420ms ease',
       }}
@@ -114,8 +102,6 @@ export function FocusMode({
           gap: 14,
         }}
       >
-        {/* No separator dot between these two: they were text, and a pair of filled buttons
-            already reads as two objects. */}
         <button data-primarybtn="" onClick={onAddNote} style={primaryIconLabelBtn}>
           <PlusIcon />
           Add note
@@ -126,8 +112,7 @@ export function FocusMode({
       </div>
 
       {/* Positioned against this overlay, which fills the window — so are the notes' own
-          coordinates. Rendered before the timer so a note dragged over it still lands on top,
-          which its z-index handles. */}
+          coordinates. Rendered before the player so a note dragged over it lands on top. */}
       <FocusNotes
         notes={notes}
         onChange={onNoteChange}
@@ -156,11 +141,8 @@ export function FocusMode({
             display: 'flex',
             alignItems: 'center',
             gap: 18,
-            // Solid white, not the app's glass: the task being worked on is the one thing on
-            // this screen that should read as a card rather than as a pane the page shows
-            // through. The blur goes with it — nothing carries through an opaque fill — and the
-            // edge and shadow come from the surface tokens the capture bar is built on, so the
-            // two opaque whites in the app are cut the same way.
+            // Opaque, not the app's glass: the task being worked on is the one thing here that
+            // should read as a card. No blur — nothing carries through an opaque fill.
             background: 'var(--surface)',
             border: '1px solid var(--surface-edge)',
             borderRadius: 14,
@@ -173,9 +155,7 @@ export function FocusMode({
               data-focustask=""
               style={{
                 ...PLAYER_LINE,
-                // The one thing the player is about, so it is the one thing in it set above the
-                // base size. A point over the clock is enough at this scale — the player is a
-                // small object, and any more would have the task crowding its own box.
+                // The one line set above the base size — a point is enough at this scale.
                 fontSize: 14,
                 color: 'var(--ink)',
                 whiteSpace: 'nowrap',
@@ -190,9 +170,6 @@ export function FocusMode({
             <div
               style={{
                 ...PLAYER_LINE,
-                // Ranked under the task by size now as well as by colour, but it keeps the
-                // colour: a point of difference is not much to carry the hierarchy alone, and
-                // the clock is the line meant to be read second.
                 color: 'var(--faint)',
                 marginTop: 8,
                 // Inter Tight is proportional, so the digits have to be asked for the fixed
@@ -225,14 +202,10 @@ export function FocusMode({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          {/* Quiet rather than filled: the pomodoro is something the screen offers, not what it
-              is asking for — "Mark done" is still the move this row is here for. */}
+          {/* Quiet rather than filled: "Mark done" is the move this row is here for. */}
           <button data-secondarybtn="" onClick={onTogglePomodoro} style={secondaryBtn}>
             {pomodoroOpen ? 'Hide Pomodoro' : 'Start Pomodoro'}
           </button>
-          {/* The dots that used to divide this row are gone with the text buttons that needed
-              them — two buttons are already two objects. Pausing lives on the round button
-              above, so the row no longer repeats it. */}
           <button data-primarybtn="" onClick={onComplete} style={primaryBtn}>
             Mark done
           </button>

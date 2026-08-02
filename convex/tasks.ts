@@ -3,7 +3,7 @@ import { mutation, query } from './_generated/server';
 import type { Doc } from './_generated/dataModel';
 import { ownTask, userId } from './helpers';
 
-/** Strips `userId` and `_creationTime` — the client needs neither, so don't ship them. */
+/** Strips `userId` and `_creationTime` — the client needs neither. */
 const view = (t: Doc<'tasks'>) => ({ id: t._id, text: t.text, done: t.done });
 
 /** The caller's whole stream, newest first. */

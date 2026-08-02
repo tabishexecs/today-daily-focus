@@ -12,7 +12,6 @@ interface Props {
   onSubmit: () => void;
 }
 
-/** A keycap, the way a command palette prints its shortcuts. */
 function Key({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <kbd
@@ -110,10 +109,9 @@ export function CaptureBar({
           data-primarybtn="1"
           aria-label="Enter"
           title="Enter"
-          // The bar sits over the input; a press would take the focus off it on the way down.
+          // A press would take focus off the input on the way down.
           onMouseDown={(e) => e.preventDefault()}
           onClick={onSubmit}
-          // Flexed so the icon sits on the button's centre rather than on its text baseline.
           style={{ ...primaryBtn, display: 'inline-flex', alignItems: 'center' }}
         >
           <EnterIcon />

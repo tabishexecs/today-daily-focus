@@ -15,8 +15,6 @@ export function TopBar({ onLogout, onOpenCapture }: Props) {
         <button onClick={onLogout} style={{ ...cornerBtn, color: 'var(--muted)' }}>
           Log out
         </button>
-        {/* No separator dot here any more: it was dividing two pieces of text, and a filled
-            button is already its own object. */}
         <button data-primarybtn="" onClick={onOpenCapture} style={primaryIconLabelBtn}>
           <PlusIcon />
           Add work

@@ -25,7 +25,7 @@ export default function App() {
 function SignedIn() {
   const { user } = useUser();
   // Keyed on the user id so switching accounts remounts Today with fresh UI state and this
-  // account's scroll anchor, rather than inheriting the previous user's.
+  // account's scroll anchor.
   return user ? <Today key={user.id} userId={user.id} /> : null;
 }
 
@@ -43,20 +43,14 @@ function Today({ userId }: { userId: string }) {
     <div
       style={{
         minHeight: '100vh',
-        // One cell, two children stacked in it: the bar pins to the top while the list
-        // centres on the full height. Vertical padding is symmetric so that centre is
-        // the window's centre — anything asymmetric here shifts the list by half of it.
+        // One cell, two children stacked in it: the bar pins to the top while the list centres
+        // on the full height. Vertical padding stays symmetric or the list shifts by half of it.
         display: 'grid',
         gridTemplate: '1fr / 1fr',
-        // The same padding the capture bar and the focus screen use, so all three line up.
-        // Vertically symmetric, per the note above.
         padding: `${topPad} ${sidePad}`,
-        // Colour and image kept apart: the `background` shorthand would drop the ruling every
-        // time the page colour is set. `border-box` because tiling starts at the padding edge
-        // otherwise — that would begin the grid a screen's padding in from the corner, and the
-        // focus screen, which has no padding of its own, would rule from the corner instead.
-        // The two screens have to lay their lines in the same places or the ruling appears to
-        // shift under you as focus opens.
+        // Colour and image apart: the `background` shorthand would drop the grid. `border-box`
+        // because tiling starts at the padding edge otherwise, and the focus overlay — which
+        // has no padding — would rule from a different origin.
         backgroundColor: 'var(--bg)',
         backgroundImage: 'var(--grid)',
         backgroundSize: 'var(--grid-cell) var(--grid-cell)',

@@ -11,13 +11,9 @@ const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'
 export const dateStr = (now = new Date()): string =>
   `${WD[now.getDay()]} · ${MO[now.getMonth()]} ${now.getDate()}`;
 
-/** Horizontal breathing room at the window's edges, shared by every full-width surface. */
+/** Shared by every full-width surface so they line up on one margin. */
 export const sidePadFor = (compact: boolean): string =>
   compact ? '22px' : 'clamp(46px,7vw,120px)';
 
-/**
- * Space above the top bar — and above anything that has to line up with it, which is why it
- * lives here rather than inline. The focus screen's own controls sit at this offset so they
- * land on the same line as the ones they cover.
- */
+/** The top bar's offset. Focus mode reuses it so its controls land on the same line. */
 export const topPadFor = (compact: boolean): string => (compact ? '26px' : '54px');
