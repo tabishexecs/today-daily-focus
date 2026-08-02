@@ -25,7 +25,7 @@ export function TopBar({ onLogout, onOpenCapture }: Props) {
           Log out
         </button>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>·</span>
-        <button onClick={onOpenCapture} style={{ ...btn, color: 'var(--primary)' }}>
+        <button onClick={onOpenCapture} style={{ ...btn, color: 'var(--primary)', fontWeight: 500 }}>
           Add work
         </button>
       </div>

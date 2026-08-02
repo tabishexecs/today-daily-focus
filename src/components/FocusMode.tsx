@@ -86,10 +86,7 @@ export function FocusMode({
           gap: 14,
         }}
       >
-        <button
-          onClick={onAddNote}
-          style={{ ...cornerBtn, color: notes.length ? 'var(--ink)' : 'var(--muted)' }}
-        >
+        <button onClick={onAddNote} style={{ ...cornerBtn, color: 'var(--ink)', fontWeight: 500 }}>
           Add note
         </button>
         <span style={{ fontSize: 11, color: 'var(--faint)' }}>·</span>
