@@ -1,15 +1,14 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { totalFor } from '../types';
-import type { FocusPhase, PanelPos } from '../types';
+import type { PanelPos, PomoPhase } from '../types';
 import { APP_FONT, secondaryDangerBtn } from '../styles';
 import { fmt } from '../util';
 import { PauseIcon, PlayFilledIcon } from './icons';
-import { GlassCloseButton } from './GlassCloseButton';
 
 interface Props {
-  phase: FocusPhase;
-  /** Seconds still to go in the phase. The panel counts down where the player counts up. */
+  phase: PomoPhase;
+  /** Seconds still to go in the phase. */
   left: number;
   running: boolean;
   /** Where the panel was left, in window fractions, or null while it sits in its corner. */
@@ -19,7 +18,6 @@ interface Props {
   onReset: () => void;
   /** Called once on release, not per pointer move. */
   onMove: (x: number, y: number) => void;
-  onClose: () => void;
 }
 
 const PHASE_LABEL: CSSProperties = {
@@ -77,14 +75,15 @@ function wavePath(width: number): string {
 }
 
 /**
- * The pomodoro, floating over the focus screen.
+ * The app's one pomodoro. It sits over every screen and is never dismissed — the session it
+ * counts outlasts any single task, so there is no moment at which taking it away would be
+ * right.
  *
- * No overlay behind it: the screen it covers is still live — notes can be dragged, the task
- * marked done — so nothing here dims or blocks it. That is also why it takes a corner, why
- * closing it is a single ×, and why it can be picked up and moved.
+ * Nothing behind it is dimmed or blocked: work goes on underneath, which is why it takes a
+ * corner by default and why it can be picked up and put somewhere less in the way.
  *
- * The clock is the focus screen's own, shown from the other end: pausing here pauses the
- * player's round button, and the reverse.
+ * Its clock is its own. The focus screen's player counts time on a task and shares nothing
+ * with this but the second it runs on.
  */
 export function PomodoroPanel({
   phase,
@@ -95,7 +94,6 @@ export function PomodoroPanel({
   onToggle,
   onReset,
   onMove,
-  onClose,
 }: Props) {
   const total = totalFor(phase);
   // Guarded: a phase change and this render are a tick apart at worst, and a wave longer than
@@ -188,7 +186,7 @@ export function PomodoroPanel({
   return (
     <div
       ref={panel}
-      role="dialog"
+      role="region"
       aria-label="Pomodoro"
       onPointerDown={onGrabDown}
       onPointerMove={onGrabMove}
@@ -197,8 +195,9 @@ export function PomodoroPanel({
       style={{
         position: 'fixed',
         ...placement,
-        // Above the notes, which top out at 4 while one is being dragged.
-        zIndex: 6,
+        // Over the focus screen, which is a fixed layer at 80 — the panel has to clear the
+        // whole of it, not merely the notes inside it, or focusing a task would bury it.
+        zIndex: 90,
         width: PANEL_W,
         // The whole pane is the handle — on something this small a grip would be most of the
         // top edge anyway.
@@ -212,17 +211,16 @@ export function PomodoroPanel({
         border: '1px solid var(--glass-edge)',
         borderRadius: 26,
         boxShadow: dragging ? 'var(--glass-lift)' : 'var(--glass-shadow)',
-        padding: `15px ${PANEL_PAD_X}px 16px`,
+        // The 15px the close button used to sit in read as less, being a 32px target in it.
+        // With the label alone up there the top squares up with the sides.
+        padding: `18px ${PANEL_PAD_X}px 16px`,
         animation: 'glassIn 260ms cubic-bezier(0.22, 1.15, 0.36, 1)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {/* In the colour its own progress is drawn in, so tag and wave name the phase together. */}
-        <span style={{ ...PHASE_LABEL, color: accent }}>
-          {phase === 'break' ? 'Break' : 'Focus'}
-        </span>
-        <GlassCloseButton size={32} label="Close pomodoro" onClick={onClose} />
-      </div>
+      {/* In the colour its own progress is drawn in, so tag and wave name the phase together. */}
+      <span style={{ ...PHASE_LABEL, color: accent, display: 'block' }}>
+        {phase === 'break' ? 'Break' : 'Focus'}
+      </span>
 
       <div
         style={{
@@ -235,9 +233,8 @@ export function PomodoroPanel({
           // Inter Tight is proportional, so the digits have to be asked for fixed widths or
           // the clock twitches every second.
           fontVariantNumeric: 'tabular-nums',
-          // The header row is as tall as the close button, which already leaves the 10px label
-          // floating in 32px of row — that leftover is the space the clock needs.
-          marginTop: 0,
+          // The label is set on a 1.0 leading, so it gives the clock nothing. This is the gap.
+          marginTop: 10,
         }}
       >
         {fmt(left)}

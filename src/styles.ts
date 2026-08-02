@@ -91,6 +91,15 @@ export const primaryIconLabelBtn: CSSProperties = {
   paddingLeft: 12,
 };
 
+/** The same, a pixel in from `secondaryBtn`'s border — as that padding is from `primaryBtn`'s. */
+export const secondaryIconLabelBtn: CSSProperties = {
+  ...secondaryBtn,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  paddingLeft: 11,
+};
+
 /** Square rather than padded: a lone glyph has no line of text to set the height from. */
 export const primaryIconBtn: CSSProperties = {
   ...primaryBtn,

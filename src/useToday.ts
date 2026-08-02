@@ -56,11 +56,12 @@ function initialUiState(userId: string): UiState {
     focusId: null,
     focusTimerId: null,
     focusRunning: false,
-    focusPhase: 'focus',
-    focusLeft: FOCUS_TOTAL,
-    pomodoroOpen: false,
-    // Read here rather than on the panel's mount: the panel comes and goes with the button
-    // that toggles it, and storage should be touched on startup.
+    focusElapsed: 0,
+    // Paused at a full pomodoro: the panel is on screen from the first paint, and a clock that
+    // started itself would be counting down something nobody had asked for.
+    pomoRunning: false,
+    pomoPhase: 'focus',
+    pomoLeft: FOCUS_TOTAL,
     pomodoroPos: readPanelPos(userId),
     compact: typeof window !== 'undefined' && window.innerWidth < 720,
   };
@@ -385,8 +386,8 @@ export function useToday(userId: string) {
     removeNote,
     exitFocus,
     focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE' }),
-    focusReset: () => dispatch({ type: 'FOCUS_RESET' }),
-    togglePomodoro: () => dispatch({ type: 'TOGGLE_POMODORO' }),
+    pomoToggle: () => dispatch({ type: 'POMO_TOGGLE' }),
+    pomoReset: () => dispatch({ type: 'POMO_RESET' }),
     movePomodoro,
     inputRef,
   };

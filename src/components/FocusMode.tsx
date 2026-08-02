@@ -1,30 +1,18 @@
 import type { CSSProperties } from 'react';
-import type { FocusPhase, Note, NoteId, PanelPos } from '../types';
-import { APP_FONT, dangerBtn, primaryBtn, primaryIconLabelBtn, secondaryBtn } from '../styles';
+import type { Note, NoteId } from '../types';
+import { APP_FONT, dangerBtn, primaryBtn, secondaryIconLabelBtn } from '../styles';
 import { fmt } from '../util';
 import { FocusNotes } from './FocusNotes';
-import { PomodoroPanel } from './PomodoroPanel';
 import { PauseIcon, PlayFilledIcon, PlusIcon } from './icons';
 
 interface Props {
   task: string;
   running: boolean;
-  /** Time spent on this task, the clock the player shows. */
+  /** Time spent on this task, the clock the player shows. Counts up, against no total. */
   elapsed: number;
-  /** The same pomodoro from the other end: which phase, and how much is left. */
-  phase: FocusPhase;
-  left: number;
-  pomodoroOpen: boolean;
-  pomodoroPos: PanelPos | null;
   sidePad: string;
-  /** Space above the controls, so they land on the same line as the top bar they cover. */
-  topPad: string;
   notes: Note[];
   onToggle: () => void;
-  onReset: () => void;
-  onTogglePomodoro: () => void;
-  /** Called once when the panel is dropped, in window fractions. */
-  onPomodoroMove: (x: number, y: number) => void;
   onComplete: () => void;
   onExit: () => void;
   onAddNote: () => void;
@@ -48,17 +36,9 @@ export function FocusMode({
   task,
   running,
   elapsed,
-  phase,
-  left,
-  pomodoroOpen,
-  pomodoroPos,
   sidePad,
-  topPad,
   notes,
   onToggle,
-  onReset,
-  onTogglePomodoro,
-  onPomodoroMove,
   onComplete,
   onExit,
   onAddNote,
@@ -82,35 +62,12 @@ export function FocusMode({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        // Everything inside inherits this except the buttons along the top, which pin their
-        // own family so they stay identical to "Add work" on the main screen.
+        // Everything inside inherits this except the action row, whose buttons pin their own
+        // family so they stay identical to "Add work" on the main screen.
         fontFamily: "'DM Mono','Helvetica Neue',monospace",
         animation: 'focusIn 420ms ease',
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          // The top bar's own offset, so these sit on the line the buttons they replace sat on.
-          padding: `${topPad} ${sidePad} 0`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 14,
-        }}
-      >
-        <button data-primarybtn="" onClick={onAddNote} style={primaryIconLabelBtn}>
-          <PlusIcon />
-          Add note
-        </button>
-        <button data-dangerbtn="" onClick={onExit} style={dangerBtn}>
-          Exit
-        </button>
-      </div>
-
       {/* Positioned against this overlay, which fills the window — so are the notes' own
           coordinates. Rendered before the player so a note dragged over it lands on top. */}
       <FocusNotes
@@ -201,30 +158,22 @@ export function FocusMode({
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          {/* Quiet rather than filled: "Mark done" is the move this row is here for. */}
-          <button data-secondarybtn="" onClick={onTogglePomodoro} style={secondaryBtn}>
-            {pomodoroOpen ? 'Hide Pomodoro' : 'Start Pomodoro'}
+        {/* Read left to right as the work goes: something to add while here, the finish, the
+            way out. "Mark done" is filled and in the middle because it is the move this screen
+            exists for; the other two are quieter on either side of it. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button data-secondarybtn="" onClick={onAddNote} style={secondaryIconLabelBtn}>
+            <PlusIcon />
+            Add note
           </button>
           <button data-primarybtn="" onClick={onComplete} style={primaryBtn}>
             Mark done
           </button>
+          <button data-dangerbtn="" onClick={onExit} style={dangerBtn}>
+            Exit
+          </button>
         </div>
       </div>
-
-      {pomodoroOpen && (
-        <PomodoroPanel
-          phase={phase}
-          left={left}
-          running={running}
-          pos={pomodoroPos}
-          sidePad={sidePad}
-          onToggle={onToggle}
-          onReset={onReset}
-          onMove={onPomodoroMove}
-          onClose={onTogglePomodoro}
-        />
-      )}
     </div>
   );
 }

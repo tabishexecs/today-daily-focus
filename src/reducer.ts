@@ -1,5 +1,5 @@
-import { FOCUS_TOTAL, totalFor } from './types';
-import type { FocusPhase, TaskId, UiState } from './types';
+import { totalFor } from './types';
+import type { PomoPhase, TaskId, UiState } from './types';
 
 /** UI state only — tasks are Convex mutations, so these are the local half of those flows. */
 export type Action =
@@ -11,8 +11,8 @@ export type Action =
   | { type: 'ENTER_FOCUS'; id: TaskId }
   | { type: 'EXIT_FOCUS' }
   | { type: 'FOCUS_TOGGLE' }
-  | { type: 'FOCUS_RESET' }
-  | { type: 'TOGGLE_POMODORO' }
+  | { type: 'POMO_TOGGLE' }
+  | { type: 'POMO_RESET' }
   | { type: 'MOVE_POMODORO'; x: number; y: number }
   | { type: 'TICK' }
   | { type: 'SET_COMPACT'; compact: boolean };
@@ -38,41 +38,49 @@ export function reducer(state: UiState, action: Action): UiState {
       return { ...state, captureText: action.text };
 
     case 'ENTER_FOCUS': {
-      // Re-entering the same task resumes its clock; any other task starts a fresh one.
+      // Re-entering the same task picks its stopwatch up where it was left; any other task
+      // starts from nothing. The pomodoro is untouched either way — it belongs to the session,
+      // not to whatever is being worked on.
       const resumed = state.focusTimerId === action.id;
       return {
         ...state,
         focusId: action.id,
         focusTimerId: action.id,
-        focusPhase: resumed ? state.focusPhase : 'focus',
-        focusLeft: resumed ? state.focusLeft : FOCUS_TOTAL,
+        focusElapsed: resumed ? state.focusElapsed : 0,
         focusRunning: true,
         captureOpen: false,
       };
     }
-    // The clock stops but is not cleared: `focusTimerId` still names the task holding it.
+    // The stopwatch stops but is not cleared: `focusTimerId` still names the task holding it.
     case 'EXIT_FOCUS':
-      return { ...state, focusId: null, focusRunning: false, pomodoroOpen: false };
+      return { ...state, focusId: null, focusRunning: false };
     case 'FOCUS_TOGGLE':
       return { ...state, focusRunning: !state.focusRunning };
-    case 'FOCUS_RESET':
-      return { ...state, focusLeft: totalFor(state.focusPhase), focusRunning: false };
 
-    // Opening starts the clock — the button says "Start Pomodoro". Closing only hides the
-    // panel; the pomodoro carries on behind it.
-    case 'TOGGLE_POMODORO':
-      return state.pomodoroOpen
-        ? { ...state, pomodoroOpen: false }
-        : { ...state, pomodoroOpen: true, focusRunning: true };
+    case 'POMO_TOGGLE':
+      return { ...state, pomoRunning: !state.pomoRunning };
+    case 'POMO_RESET':
+      return { ...state, pomoLeft: totalFor(state.pomoPhase), pomoRunning: false };
 
     case 'MOVE_POMODORO':
       return { ...state, pomodoroPos: { x: action.x, y: action.y } };
 
+    // Both clocks run off the one second, and each is gated on its own. Returning `state`
+    // untouched when neither is going is what keeps a permanently mounted panel from
+    // re-rendering the app every second it sits paused.
     case 'TICK': {
-      if (state.focusId == null || !state.focusRunning) return state;
-      if (state.focusLeft > 1) return { ...state, focusLeft: state.focusLeft - 1 };
-      const next: FocusPhase = state.focusPhase === 'focus' ? 'break' : 'focus';
-      return { ...state, focusPhase: next, focusLeft: totalFor(next), focusRunning: true };
+      const focusOn = state.focusId != null && state.focusRunning;
+      if (!focusOn && !state.pomoRunning) return state;
+      let next = state;
+      if (focusOn) next = { ...next, focusElapsed: next.focusElapsed + 1 };
+      if (state.pomoRunning) {
+        if (state.pomoLeft > 1) next = { ...next, pomoLeft: next.pomoLeft - 1 };
+        else {
+          const phase: PomoPhase = state.pomoPhase === 'focus' ? 'break' : 'focus';
+          next = { ...next, pomoPhase: phase, pomoLeft: totalFor(phase) };
+        }
+      }
+      return next;
     }
 
     case 'SET_COMPACT':
