@@ -42,6 +42,16 @@
      it is being carried rather than parked. */
   --glass-lift: 0 30px 60px -20px rgba(31, 31, 29, 0.45), 0 4px 12px rgba(31, 31, 29, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+  /* Ruling on the page the day is written on. Pitched to be felt rather than read: the ink at
+     3% is under the contrast of every hairline in the app, so it never competes with a card
+     edge, and the 32px cell is wide enough that the lines stay separate marks instead of
+     resolving into a tint over the whole page. Two gradients rather than one image so the
+     cell size stays a number the layout can be tuned against. */
+  --grid-line: rgba(31, 31, 29, 0.03);
+  --grid-cell: 32px;
+  --grid: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
 }
 
 * {
