@@ -44,6 +44,11 @@ export interface UiState {
   captureOpen: boolean;
   captureText: string;
   focusId: TaskId | null;
+  /**
+   * The task the clock below belongs to, which outlives `focusId` — that goes null on exit,
+   * this does not. It is what lets the same task be picked back up mid-pomodoro.
+   */
+  focusTimerId: TaskId | null;
   focusRunning: boolean;
   focusPhase: FocusPhase;
   focusLeft: number;
