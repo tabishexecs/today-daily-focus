@@ -62,7 +62,11 @@ function Today({ userId }: { userId: string }) {
         position: 'relative',
       }}
     >
-      <div style={{ gridArea: '1 / 1', alignSelf: 'start' }}>
+      {/* Raised over the stream, which shares this cell and is painted after it. The stream is
+          a fixed 560px centred on the cell, so on a window under ~734px tall it grows up into
+          the bar's row and — being later in the DOM — takes the clicks meant for these
+          buttons. */}
+      <div style={{ gridArea: '1 / 1', alignSelf: 'start', position: 'relative', zIndex: 1 }}>
         <TopBar onLogout={() => signOut()} onOpenCapture={actions.openCapture} />
       </div>
 
