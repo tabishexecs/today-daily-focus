@@ -1,5 +1,4 @@
 import { Show, useClerk, useUser } from '@clerk/react';
-import { totalFor } from './types';
 import { useToday } from './useToday';
 import { APP_FONT } from './styles';
 import { sidePadFor, topPadFor } from './util';
@@ -7,6 +6,7 @@ import { TopBar } from './components/TopBar';
 import { TaskStream } from './components/TaskStream';
 import { CaptureBar } from './components/CaptureBar';
 import { FocusMode } from './components/FocusMode';
+import { PomodoroPanel } from './components/PomodoroPanel';
 import { SignInScreen } from './components/SignInScreen';
 
 export default function App() {
@@ -37,7 +37,6 @@ function Today({ userId }: { userId: string }) {
   const topPad = topPadFor(c);
 
   const focusTask = state.focusId != null ? tasks.find((t) => t.id === state.focusId) : null;
-  const focusElapsed = totalFor(state.focusPhase) - state.focusLeft;
 
   return (
     <div
@@ -108,18 +107,10 @@ function Today({ userId }: { userId: string }) {
         <FocusMode
           task={focusTask.text}
           running={state.focusRunning}
-          elapsed={focusElapsed}
-          phase={state.focusPhase}
-          left={state.focusLeft}
-          pomodoroOpen={state.pomodoroOpen}
-          pomodoroPos={state.pomodoroPos}
+          elapsed={state.focusElapsed}
           sidePad={sidePad}
-          topPad={topPad}
           notes={notes}
           onToggle={actions.focusToggle}
-          onReset={actions.focusReset}
-          onTogglePomodoro={actions.togglePomodoro}
-          onPomodoroMove={actions.movePomodoro}
           onComplete={actions.focusComplete}
           onExit={actions.exitFocus}
           onAddNote={actions.addNote}
@@ -129,6 +120,21 @@ function Today({ userId }: { userId: string }) {
           onNoteRemove={actions.removeNote}
         />
       )}
+
+      {/* Mounted once, here rather than inside the focus screen, and never conditionally. That
+          is the whole of it carrying over: focusing a task renders an overlay *underneath* this
+          panel, so there is nothing to unmount, remount, re-place or re-animate — the same
+          element keeps counting through the change. */}
+      <PomodoroPanel
+        phase={state.pomoPhase}
+        left={state.pomoLeft}
+        running={state.pomoRunning}
+        pos={state.pomodoroPos}
+        sidePad={sidePad}
+        onToggle={actions.pomoToggle}
+        onReset={actions.pomoReset}
+        onMove={actions.movePomodoro}
+      />
     </div>
   );
 }

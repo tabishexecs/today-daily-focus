@@ -25,12 +25,19 @@ const VIS = 5;
 const STRIKE_H = Math.round(TASK_SIZE / 14);
 
 /**
- * Row height is the padding — content is centred and nothing rules between rows. The gap has
- * to beat the leading *inside* a title or two rows read as one block: the worst case is two
- * clamped lines (70px), leaving 42px against a 35px leading.
+ * Row height is the padding — content is centred and nothing rules between rows. These sit on
+ * the floor, which two separate rules put in the same place, both set by the worst case of a
+ * title clamped to two lines (50px):
+ *
+ * - the gap has to beat the leading *inside* a title, or two rows read as one block. That is
+ *   50 + 25, so 75px.
+ * - `HIT_PAD` hangs off each end of a title and isn't clipped to the row. That is 50 + 28, so
+ *   78px, below which one title's hit area reaches into the row above.
+ *
+ * Going tighter means moving one of those, not this number.
  */
-const ROW_H = 112;
-const ROW_H_COMPACT = 108;
+const ROW_H = 80;
+const ROW_H_COMPACT = 78;
 
 /**
  * Vertical slack around a title, so completing a task doesn't need a hit on the glyphs. Only

@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 export const APP_FONT = "'Inter Tight','Helvetica Neue',Arial,sans-serif";
 
 /** `TASK_SIZE` is exported because the stream scales its strike rule off it. */
-export const TASK_SIZE = 28;
+export const TASK_SIZE = 20;
 const TASK_WEIGHT = 500;
 const TASK_LEADING = 1.25;
 
@@ -89,6 +89,15 @@ export const primaryIconLabelBtn: CSSProperties = {
   alignItems: 'center',
   gap: 6,
   paddingLeft: 12,
+};
+
+/** The same, a pixel in from `secondaryBtn`'s border — as that padding is from `primaryBtn`'s. */
+export const secondaryIconLabelBtn: CSSProperties = {
+  ...secondaryBtn,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  paddingLeft: 11,
 };
 
 /** Square rather than padded: a lone glyph has no line of text to set the height from. */
