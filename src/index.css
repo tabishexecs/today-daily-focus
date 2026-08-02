@@ -1,21 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
+/* Two faces, one request: Inter Tight carries the app, DM Mono the focus screen. The css2 API
+   wants the families in alphabetical order. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter+Tight:wght@400;500&display=swap');
 
+/**
+ * A neutral grey palette. The three below the comment are the ones taken from the reference —
+ * page, text, and the grey that text drops to; everything after them is derived, holding the
+ * lightness relationships the old warm palette had so surfaces still separate from the page by
+ * the same amount. The palette used to be warm throughout, so leaving the derived tokens on
+ * their beige would have put cream hairlines and cards on a grey page.
+ */
 :root {
-  --bg: #f6f3ee;
-  --ink: #24211c;
-  --muted: #a99f8d;
-  --faint: #c3baa9;
-  --divider-task: #e9e3d8;
-  --hairline-alt: #e4ddd0;
+  /* Near white and flat neutral — no cast, so the derived greys below sit on it without a tint
+     to fight. The focus screen runs on this too, so the two share one page rather than two
+     greys a point apart. */
+  --bg: #fafafa;
+  --ink: #1f1f1d;
+  --muted: #9c9c9a;
+
+  --faint: #bdbdbb;
+  --hairline-alt: #d7d7d5;
   --primary: #0249b4;
   --strike: #8b0000;
-  --card: #efe9dd;
+  --card: #e2e2e0;
   --surface: #ffffff;
-  --surface-edge: #e6dfd2;
-  --surface-shadow: 0 18px 44px -18px rgba(36, 33, 28, 0.28), 0 2px 6px rgba(36, 33, 28, 0.06);
+  --surface-edge: #d9d9d7;
+  --surface-shadow: 0 18px 44px -18px rgba(31, 31, 29, 0.28), 0 2px 6px rgba(31, 31, 29, 0.06);
   --glass: rgba(255, 255, 255, 0.42);
   --glass-edge: rgba(255, 255, 255, 0.62);
-  --glass-shadow: 0 20px 48px -22px rgba(36, 33, 28, 0.38), 0 2px 8px rgba(36, 33, 28, 0.05),
+  --glass-shadow: 0 20px 48px -22px rgba(31, 31, 29, 0.38), 0 2px 8px rgba(31, 31, 29, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  /* Deep, and saturated harder than life: iOS leans on the colour it pulls through the glass,
+     and this page is nearly flat grey. Held here rather than on each pane so the pomodoro and
+     the notes are one material — two panes that blur differently read as two different things
+     floating on the same screen. */
+  --glass-blur: blur(30px) saturate(1.9);
+  /* For the small discs that float on a pane rather than on the page. Shallower on purpose:
+     these only have to lift off a backdrop that has already been blurred once, and a deep
+     blur over a deep blur reads as a smudge. */
+  --glass-blur-sm: blur(12px) saturate(1.8);
+  /* A pane in hand. Held higher off the screen and casting further, which is the one cue that
+     it is being carried rather than parked. */
+  --glass-lift: 0 30px 60px -20px rgba(31, 31, 29, 0.45), 0 4px 12px rgba(31, 31, 29, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
@@ -35,7 +60,7 @@ body {
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
-  font-family: 'DM Mono', 'Helvetica Neue', monospace;
+  font-family: 'Inter Tight', 'Helvetica Neue', Arial, sans-serif;
   font-weight: 400;
   color: var(--ink);
 }
@@ -55,16 +80,15 @@ a:not(.cl-rootBox *):hover {
 input:not(.cl-rootBox *)::placeholder,
 textarea:not(.cl-rootBox *)::placeholder {
   color: var(--faint);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 *:not(.cl-rootBox *)::selection {
-  background: #e7e0d2;
+  background: #dcdcda;
 }
 
-/* Clerk's `fontFamily` variable defaults to `inherit`, so the DM Mono on `body` would follow
-   it in. Hand the card back a neutral system stack — the stock Clerk look. */
+/* Clerk's `fontFamily` variable defaults to `inherit`, so the Inter Tight on `body` would
+   follow it in. Hand the card back a neutral system stack — the stock Clerk look. */
 .cl-rootBox {
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-weight: normal;
@@ -73,24 +97,75 @@ textarea:not(.cl-rootBox *)::placeholder {
   color: initial;
 }
 
-/* Hover affordances that can't live in inline styles */
-[data-taskrow]:hover [data-taskplay],
+/* Hover affordances that can't live in inline styles. The focus button is not among them any
+   more — it is a filled button that stands in the row whether or not it is pointed at. */
+/* Clerk darkens its primary button on press-in rather than lightening it, so this follows. */
+[data-primarybtn]:hover {
+  background: #26272d !important;
+}
+[data-dangerbtn]:hover {
+  background: #6d0000 !important;
+}
+/* The outlined ones have no fill to darken, so they pick one up: the neutral toward the page
+   it sits on, the destructive one toward its own red. */
+[data-secondarybtn]:hover {
+  background: #f5f5f3 !important;
+}
+[data-secondarydangerbtn]:hover {
+  background: #faf2f2 !important;
+}
+[data-primarybtn]:focus-visible,
+[data-dangerbtn]:focus-visible,
+[data-secondarybtn]:focus-visible,
+[data-secondarydangerbtn]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 [data-taskrow]:hover [data-taskdel] {
   opacity: 1 !important;
-}
-[data-taskplay]:hover {
-  color: var(--primary) !important;
 }
 /* Deleting is the destructive one, so it answers in the strike red, not the accent blue. */
 [data-taskdel]:hover {
   color: var(--strike) !important;
 }
-/* Faint until pointed at, but never invisible — a touch screen has no hover to reveal it. */
-[data-note]:hover [data-notedel] {
-  opacity: 1 !important;
+/* Sentence case, not as-typed: the task is whatever was thrown into the capture bar, often
+   lowercase. Only the opening letter is forced — lowercasing the rest would flatten the
+   acronyms and names people write into a task. */
+[data-focustask]::first-letter {
+  text-transform: uppercase;
 }
-[data-notedel]:hover {
-  color: var(--strike) !important;
+/* The placeholder sits in the same face and tracking the note is typed in, so the empty card
+   shows the shape the writing will take. The global rule above tracks placeholders out and
+   colours them `--faint`, which was mixed for the old card grey and all but disappears over
+   glass — both are overridden here. */
+[data-note] textarea::placeholder {
+  letter-spacing: 0.02em;
+  color: rgba(31, 31, 29, 0.34);
+}
+
+/* The pomodoro's dismiss is a lens rather than a link, so it answers the pointer the way glass
+   does: it clears as you approach — more light through it, the glyph darkening to full ink —
+   and gives under the press before springing back. `!important` because the button carries its
+   resting look inline, alongside the blur and the lit edges those states play against. */
+[data-glassclose] {
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease,
+    transform 220ms cubic-bezier(0.22, 1.15, 0.36, 1);
+}
+[data-glassclose]:hover {
+  background: rgba(255, 255, 255, 0.72) !important;
+  color: var(--ink) !important;
+}
+/* Pressed in and lit from within: the shadow pulls close and the fill brightens past its hover,
+   which is what a piece of glass does when something pushes it against what it is lying on. */
+[data-glassclose]:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.86) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px -1px rgba(31, 31, 29, 0.16) !important;
+}
+[data-glassclose]:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* The task stream scrolls, but a scrollbar would fight the fade. */
@@ -101,16 +176,6 @@ textarea:not(.cl-rootBox *)::placeholder {
   display: none;
 }
 
-@keyframes wonIn {
-  from {
-    opacity: 0;
-    transform: translateY(7px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 @keyframes focusIn {
   from {
     opacity: 0;
@@ -138,6 +203,30 @@ textarea:not(.cl-rootBox *)::placeholder {
 @media (prefers-reduced-motion: reduce) {
   [data-float] {
     animation: none;
+  }
+  /* The colour still moves — it is the part that says the control is live, and so does the
+     note's fade-in, which is what reveals the control at all. Only the squash under the press
+     goes, since that is motion for its own sake. */
+  [data-glassclose] {
+    transition: opacity 160ms ease, background 160ms ease, color 160ms ease,
+      border-color 160ms ease;
+  }
+  [data-glassclose]:active {
+    transform: none;
+  }
+}
+
+/* A pane of glass arriving — the pomodoro, or a note just written. Up from under where it
+   lands, and slightly small, so the overshoot in its easing reads as the thing settling
+   rather than as a size change. */
+@keyframes glassIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 

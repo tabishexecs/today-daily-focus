@@ -37,6 +37,16 @@ export interface Task extends StoredTask {
 
 export type FocusPhase = 'focus' | 'break';
 
+/**
+ * Where the pomodoro panel has been dragged to — the top-left corner of it, as fractions of the
+ * window, for the same reason a note's position is: the panel comes back to the same place on a
+ * window it was not placed in.
+ */
+export interface PanelPos {
+  x: number;
+  y: number;
+}
+
 /** Everything the reducer owns. The task list is not here — Convex owns it. */
 export interface UiState {
   /** Ids currently striking through. Cleared when the completion lands. */
@@ -52,6 +62,16 @@ export interface UiState {
   focusRunning: boolean;
   focusPhase: FocusPhase;
   focusLeft: number;
+  /**
+   * Whether the floating pomodoro panel is showing. Only the panel is opened and closed here —
+   * the clock it displays is the one above, which runs whether or not anything is looking at it.
+   */
+  pomodoroOpen: boolean;
+  /**
+   * Where that panel sits, or null while it has never been moved — which is what leaves it
+   * pinned to its corner. Read from `localStorage` at startup and written back on each drop.
+   */
+  pomodoroPos: PanelPos | null;
   compact: boolean;
 }
 

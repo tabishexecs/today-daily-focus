@@ -16,6 +16,8 @@ export type Action =
   | { type: 'EXIT_FOCUS' }
   | { type: 'FOCUS_TOGGLE' }
   | { type: 'FOCUS_RESET' }
+  | { type: 'TOGGLE_POMODORO' }
+  | { type: 'MOVE_POMODORO'; x: number; y: number }
   | { type: 'TICK' }
   | { type: 'SET_COMPACT'; compact: boolean };
 
@@ -55,13 +57,27 @@ export function reducer(state: UiState, action: Action): UiState {
         captureOpen: false,
       };
     }
-    // The clock stops but is not cleared: `focusTimerId` still names the task holding it.
+    // The clock stops but is not cleared: `focusTimerId` still names the task holding it. The
+    // panel closes with the screen it floats over, so the next focus opens on the same view.
     case 'EXIT_FOCUS':
-      return { ...state, focusId: null, focusRunning: false };
+      return { ...state, focusId: null, focusRunning: false, pomodoroOpen: false };
     case 'FOCUS_TOGGLE':
       return { ...state, focusRunning: !state.focusRunning };
     case 'FOCUS_RESET':
       return { ...state, focusLeft: totalFor(state.focusPhase), focusRunning: false };
+
+    // Opening also starts the clock, because the button that does it says "Start Pomodoro" —
+    // pressing it and watching a paused timer sit there would be a lie. Closing only hides
+    // the panel; the pomodoro carries on behind it.
+    case 'TOGGLE_POMODORO':
+      return state.pomodoroOpen
+        ? { ...state, pomodoroOpen: false }
+        : { ...state, pomodoroOpen: true, focusRunning: true };
+
+    // Once per drop, not once per pointer move — the panel carries the drag itself and only
+    // says where it landed.
+    case 'MOVE_POMODORO':
+      return { ...state, pomodoroPos: { x: action.x, y: action.y } };
 
     case 'TICK': {
       if (state.focusId == null || !state.focusRunning) return state;

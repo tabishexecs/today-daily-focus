@@ -1,20 +1,32 @@
-import type { FocusPhase, Note, NoteId } from '../types';
-import { cornerBtn, textBtn } from '../styles';
+import type { CSSProperties } from 'react';
+import type { FocusPhase, Note, NoteId, PanelPos } from '../types';
+import { APP_FONT, dangerBtn, primaryBtn, primaryIconLabelBtn, secondaryBtn } from '../styles';
 import { fmt } from '../util';
 import { FocusNotes } from './FocusNotes';
-import { PauseIcon, PlayFilledIcon } from './icons';
+import { PomodoroPanel } from './PomodoroPanel';
+import { PauseIcon, PlayFilledIcon, PlusIcon } from './icons';
 
 interface Props {
   task: string;
-  phase: FocusPhase;
   running: boolean;
-  left: number;
+  /** Time spent on this task, the clock the player shows. */
   elapsed: number;
+  /** The same pomodoro from the other end, for the panel: which phase, and how much is left. */
+  phase: FocusPhase;
+  left: number;
+  pomodoroOpen: boolean;
+  /** Where the panel was last dropped, or null while it still sits in its corner. */
+  pomodoroPos: PanelPos | null;
   sidePad: string;
+  /** Space above the controls, so they land on the same line as the top bar they cover. */
+  topPad: string;
   /** Every note on the focused task, each carrying its own position. */
   notes: Note[];
   onToggle: () => void;
   onReset: () => void;
+  onTogglePomodoro: () => void;
+  /** Called once when the panel is dropped, in window fractions. */
+  onPomodoroMove: (x: number, y: number) => void;
   onComplete: () => void;
   onExit: () => void;
   onAddNote: () => void;
@@ -27,16 +39,34 @@ interface Props {
 /** Fades the tail of long task text as it approaches the play/pause button. */
 const TAIL_FADE = 'linear-gradient(to right, #000 calc(100% - 48px), transparent 100%)';
 
+/**
+ * What the two lines inside the player share: the face, named outright because the focus screen
+ * around them is DM Mono and they would otherwise inherit it, and the tracking. The size is not
+ * shared — the task takes a step up from this, which is the base the clock keeps.
+ */
+const PLAYER_LINE: CSSProperties = {
+  fontFamily: APP_FONT,
+  fontSize: 13,
+  // Sentence case needs far less tracking than the all-caps this used to be, but Inter Tight
+  // is drawn close by default, so a touch goes back.
+  letterSpacing: '0.02em',
+};
+
 export function FocusMode({
   task,
-  phase,
   running,
-  left,
   elapsed,
+  phase,
+  left,
+  pomodoroOpen,
+  pomodoroPos,
   sidePad,
+  topPad,
   notes,
   onToggle,
   onReset,
+  onTogglePomodoro,
+  onPomodoroMove,
   onComplete,
   onExit,
   onAddNote,
@@ -45,20 +75,22 @@ export function FocusMode({
   onNoteResize,
   onNoteRemove,
 }: Props) {
-  const isBreak = phase === 'break';
-  const stateLabel = running ? (isBreak ? 'ON BREAK' : 'IN FOCUS') : 'PAUSED';
-
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 80,
-        background:
-          'radial-gradient(120% 90% at 50% 42%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 62%), var(--bg)',
+        // The page's own colour, flat. White pooled behind the player here before, which lit the
+        // middle of the screen and left the edges on the page's grey — two controls in the same
+        // filled black read as two different blacks depending where they sat in that falloff.
+        background: 'var(--bg)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        // The focus screen keeps the mono the app was originally set in. Everything inside it
+        // inherits this — timer, state, task, notes — except the two buttons along the top,
+        // which pin their own family so they stay identical to "Add work" on the main screen.
         fontFamily: "'DM Mono','Helvetica Neue',monospace",
         animation: 'focusIn 420ms ease',
       }}
@@ -69,18 +101,21 @@ export function FocusMode({
           top: 0,
           left: 0,
           right: 0,
-          padding: `20px ${sidePad}`,
+          // The top bar's own offset, so these sit on the line the buttons they replace sat on.
+          padding: `${topPad} ${sidePad} 0`,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'center',
           gap: 14,
         }}
       >
-        <button onClick={onAddNote} style={{ ...cornerBtn, color: 'var(--ink)', fontWeight: 500 }}>
+        {/* No separator dot between these two: they were text, and a pair of filled buttons
+            already reads as two objects. */}
+        <button data-primarybtn="" onClick={onAddNote} style={primaryIconLabelBtn}>
+          <PlusIcon />
           Add note
         </button>
-        <span style={{ fontSize: 11, color: 'var(--faint)' }}>·</span>
-        <button onClick={onExit} style={{ ...cornerBtn, color: 'var(--strike)' }}>
+        <button data-dangerbtn="" onClick={onExit} style={dangerBtn}>
           Exit
         </button>
       </div>
@@ -108,30 +143,6 @@ export function FocusMode({
           boxSizing: 'border-box',
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.4em',
-              fontWeight: 500,
-              color: 'var(--ink)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {fmt(left)}
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              letterSpacing: '0.36em',
-              color: 'var(--muted)',
-              ...(running ? { animation: 'pulse 2600ms ease-in-out infinite' } : {}),
-            }}
-          >
-            {stateLabel}
-          </div>
-        </div>
-
         <div
           data-float
           style={{
@@ -140,21 +151,27 @@ export function FocusMode({
             display: 'flex',
             alignItems: 'center',
             gap: 18,
-            background: 'var(--glass)',
-            backdropFilter: 'blur(20px) saturate(1.6)',
-            WebkitBackdropFilter: 'blur(20px) saturate(1.6)',
-            border: '1px solid var(--glass-edge)',
+            // Solid white, not the app's glass: the task being worked on is the one thing on
+            // this screen that should read as a card rather than as a pane the page shows
+            // through. The blur goes with it — nothing carries through an opaque fill — and the
+            // edge and shadow come from the surface tokens the capture bar is built on, so the
+            // two opaque whites in the app are cut the same way.
+            background: 'var(--surface)',
+            border: '1px solid var(--surface-edge)',
             borderRadius: 14,
-            boxShadow: 'var(--glass-shadow)',
+            boxShadow: 'var(--surface-shadow)',
             padding: '13px 21px 13px 19px',
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
+              data-focustask=""
               style={{
-                fontSize: 11,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
+                ...PLAYER_LINE,
+                // The one thing the player is about, so it is the one thing in it set above the
+                // base size. A point over the clock is enough at this scale — the player is a
+                // small object, and any more would have the task crowding its own box.
+                fontSize: 14,
                 color: 'var(--ink)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -167,10 +184,14 @@ export function FocusMode({
             </div>
             <div
               style={{
-                fontSize: 11,
-                letterSpacing: '0.26em',
-                color: 'var(--muted)',
-                marginTop: 7,
+                ...PLAYER_LINE,
+                // Ranked under the task by size now as well as by colour, but it keeps the
+                // colour: a point of difference is not much to carry the hierarchy alone, and
+                // the clock is the line meant to be read second.
+                color: 'var(--faint)',
+                marginTop: 8,
+                // Inter Tight is proportional, so the digits have to be asked for the fixed
+                // widths DM Mono gave for free — otherwise the clock twitches every second.
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
@@ -199,19 +220,33 @@ export function FocusMode({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-          <button onClick={onToggle} style={{ ...textBtn, color: 'var(--ink)' }}>
-            {running ? 'Pause' : 'Resume'}
+          {/* Quiet rather than filled: the pomodoro is something the screen offers, not what it
+              is asking for — "Mark done" is still the move this row is here for. */}
+          <button data-secondarybtn="" onClick={onTogglePomodoro} style={secondaryBtn}>
+            {pomodoroOpen ? 'Hide Pomodoro' : 'Start Pomodoro'}
           </button>
-          <span style={{ fontSize: 11, color: 'var(--faint)' }}>·</span>
-          <button onClick={onReset} style={{ ...textBtn, color: 'var(--muted)' }}>
-            Reset
-          </button>
-          <span style={{ fontSize: 11, color: 'var(--faint)' }}>·</span>
-          <button onClick={onComplete} style={{ ...textBtn, color: 'var(--primary)' }}>
+          {/* The dots that used to divide this row are gone with the text buttons that needed
+              them — two buttons are already two objects. Pausing lives on the round button
+              above, so the row no longer repeats it. */}
+          <button data-primarybtn="" onClick={onComplete} style={primaryBtn}>
             Mark done
           </button>
         </div>
       </div>
+
+      {pomodoroOpen && (
+        <PomodoroPanel
+          phase={phase}
+          left={left}
+          running={running}
+          pos={pomodoroPos}
+          sidePad={sidePad}
+          onToggle={onToggle}
+          onReset={onReset}
+          onMove={onPomodoroMove}
+          onClose={onTogglePomodoro}
+        />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import type { OptimisticLocalStore } from 'convex/browser';
 import { api } from '../convex/_generated/api';
 import { reducer } from './reducer';
 import { FOCUS_TOTAL } from './types';
-import type { Note, NoteId, StoredTask, Task, TaskId, UiState } from './types';
+import type { Note, NoteId, PanelPos, StoredTask, Task, TaskId, UiState } from './types';
 
 /**
  * Which task sat at the centre of the band when we last stopped scrolling. Stored as an id,
@@ -27,6 +27,33 @@ function readAnchor(userId: string): string | null {
 }
 
 /**
+ * Where the pomodoro panel was left. Kept next to the anchor above and for the same reason: it
+ * describes this screen rather than this account's work, and a panel dragged clear of something
+ * on a wide monitor would land somewhere arbitrary on a laptop that synced it. Tasks and notes
+ * are the things worth carrying between devices; where a floating pane sits is not.
+ */
+const panelKey = (userId: string) => `today.v2:${userId}.pomodoro`;
+
+/**
+ * Anything at all can be under a storage key — an older version of this app, another tab, a
+ * hand-edited value — so the stored pair is checked before it is believed rather than cast.
+ */
+function readPanelPos(userId: string): PanelPos | null {
+  try {
+    const raw = localStorage.getItem(panelKey(userId));
+    if (!raw) return null;
+    const { x, y } = JSON.parse(raw) as Record<string, unknown>;
+    if (typeof x !== 'number' || typeof y !== 'number') return null;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    // Fractions of the window, so anything outside that range never described a position on
+    // screen. The panel is held inside the window again when it is placed.
+    return { x: Math.min(Math.max(x, 0), 1), y: Math.min(Math.max(y, 0), 1) };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Ids minted client-side for a task that has been captured but not yet acknowledged by the
  * server. They are never real document ids, so anything that would send one back to Convex
  * checks this first rather than failing validation a moment later.
@@ -34,7 +61,7 @@ function readAnchor(userId: string): string | null {
 const optimisticId = () => `optimistic:${crypto.randomUUID()}` as TaskId;
 const isOptimistic = (id: TaskId) => id.startsWith('optimistic:');
 
-function initialUiState(): UiState {
+function initialUiState(userId: string): UiState {
   return {
     striking: [],
     captureOpen: false,
@@ -44,18 +71,23 @@ function initialUiState(): UiState {
     focusRunning: false,
     focusPhase: 'focus',
     focusLeft: FOCUS_TOTAL,
+    pomodoroOpen: false,
+    // Read once, here rather than on the panel's mount: the panel comes and goes with the
+    // button that toggles it, and storage should be touched on startup, not on every open.
+    pomodoroPos: readPanelPos(userId),
     compact: typeof window !== 'undefined' && window.innerWidth < 720,
   };
 }
 
 /**
- * @param userId Clerk user id, used only for the scroll anchor key. Task scoping is the
+ * @param userId Clerk user id, used only to key what this browser keeps to itself — the scroll
+ *   anchor and the pomodoro panel's position. Task scoping is the
  *   server's job now — `api.tasks.*` reads the subject off the verified JWT, so the browser
  *   never names the account whose rows it wants. The caller still remounts this hook's owner
  *   on change (via `key`), which resets in-flight UI state on an account switch.
  */
 export function useToday(userId: string) {
-  const [state, dispatch] = useReducer(reducer, undefined, initialUiState);
+  const [state, dispatch] = useReducer(reducer, userId, initialUiState);
 
   // `undefined` while the first result is in flight; every later change to the stream —
   // including one made on another device — pushes a new array through here.
@@ -157,6 +189,23 @@ export function useToday(userId: string) {
       try {
         if (id) localStorage.setItem(anchorKey(userId), id);
         else localStorage.removeItem(anchorKey(userId));
+      } catch {
+        /* ignore quota / privacy-mode errors */
+      }
+    },
+    [userId],
+  );
+
+  /**
+   * Called once when the panel is dropped, so the write is per drag rather than per frame.
+   * Storage is written alongside the dispatch rather than from an effect watching the state —
+   * the same shape `saveAnchor` has, and it keeps the reducer free of the browser.
+   */
+  const movePomodoro = useCallback(
+    (x: number, y: number) => {
+      dispatch({ type: 'MOVE_POMODORO', x, y });
+      try {
+        localStorage.setItem(panelKey(userId), JSON.stringify({ x, y }));
       } catch {
         /* ignore quota / privacy-mode errors */
       }
@@ -277,19 +326,25 @@ export function useToday(userId: string) {
     setTimeout(() => inputRef.current?.focus(), 80);
   }, []);
 
+  const closeCapture = useCallback(() => {
+    dispatch({ type: 'CLOSE_CAPTURE' });
+    dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
+  }, []);
+
+  // Reachable from the Enter key and from the keycap that stands for it, so the taking of the
+  // text lives here rather than inside the key handler.
+  const submitCapture = useCallback(() => {
+    const text = (stateRef.current.captureText || '').trim();
+    closeCapture();
+    if (text) void addTask({ text });
+  }, [addTask, closeCapture]);
+
   const onCapKey = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Enter') {
-        const text = (stateRef.current.captureText || '').trim();
-        dispatch({ type: 'CLOSE_CAPTURE' });
-        dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
-        if (text) void addTask({ text });
-      } else if (e.key === 'Escape') {
-        dispatch({ type: 'CLOSE_CAPTURE' });
-        dispatch({ type: 'SET_CAPTURE_TEXT', text: '' });
-      }
+      if (e.key === 'Enter') submitCapture();
+      else if (e.key === 'Escape') closeCapture();
     },
-    [addTask],
+    [submitCapture, closeCapture],
   );
 
   // The focused task can vanish under us — deleted on another device, or on this one from a
@@ -344,6 +399,7 @@ export function useToday(userId: string) {
     focusComplete,
     openCapture,
     onCapKey,
+    submitCapture,
     setCaptureText: (text: string) => dispatch({ type: 'SET_CAPTURE_TEXT', text }),
     removeTask,
     saveAnchor,
@@ -355,6 +411,8 @@ export function useToday(userId: string) {
     exitFocus,
     focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE' }),
     focusReset: () => dispatch({ type: 'FOCUS_RESET' }),
+    togglePomodoro: () => dispatch({ type: 'TOGGLE_POMODORO' }),
+    movePomodoro,
     inputRef,
   };
 
