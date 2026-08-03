@@ -1,4 +1,4 @@
-import { Show, useClerk, useUser } from '@clerk/react';
+import { Show, useUser } from '@clerk/react';
 import { useToday } from './useToday';
 import { APP_FONT } from './styles';
 import { sidePadFor, topPadFor } from './util';
@@ -31,7 +31,6 @@ function SignedIn() {
 
 function Today({ userId }: { userId: string }) {
   const { state, tasks, notes, loading, actions, initialAnchorId } = useToday(userId);
-  const { signOut } = useClerk();
   const c = state.compact;
   const sidePad = sidePadFor(c);
   const topPad = topPadFor(c);
@@ -66,7 +65,7 @@ function Today({ userId }: { userId: string }) {
           the bar's row and — being later in the DOM — takes the clicks meant for these
           buttons. */}
       <div style={{ gridArea: '1 / 1', alignSelf: 'start', position: 'relative', zIndex: 1 }}>
-        <TopBar onLogout={() => signOut()} onOpenCapture={actions.openCapture} />
+        <TopBar onOpenCapture={actions.openCapture} />
       </div>
 
       <div
