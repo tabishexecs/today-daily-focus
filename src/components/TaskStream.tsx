@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Task, TaskId } from '../types';
-import { TASK_SIZE, primaryIconBtn, taskText } from '../styles';
-import { PlayIcon } from './icons';
+import { TASK_SIZE, primaryIconBtn, secondaryIconLabelBtn, taskText } from '../styles';
+import { PlayIcon, PlusIcon } from './icons';
 
 interface Props {
   tasks: Task[];
@@ -14,6 +14,8 @@ interface Props {
   onFocus: (id: TaskId) => void;
   onRemove: (id: TaskId) => void;
   onAnchor: (id: string | null) => void;
+  /** Only the empty state calls this — the same capture bar the top bar opens. */
+  onAddWork: () => void;
 }
 
 /** Rows legible at rest. */
@@ -65,6 +67,7 @@ export function TaskStream({
   onFocus,
   onRemove,
   onAnchor,
+  onAddWork,
 }: Props) {
   const rowH = compact ? ROW_H_COMPACT : ROW_H;
   const viewH = VIS * rowH;
@@ -139,8 +142,8 @@ export function TaskStream({
     return Math.abs(rowCenter - viewCenter) / rowH;
   };
 
-  // Hold the height while the first query is in flight, but say nothing: flashing "Nothing
-  // yet" at someone who has fifty tasks is worse than a beat of empty space.
+  // Hold the height while the first query is in flight, but say nothing: flashing "Nothing to
+  // see here." at someone who has fifty tasks is worse than a beat of empty space.
   if (loading) return <div style={{ height: viewH }} />;
 
   if (tasks.length === 0) {
@@ -154,12 +157,20 @@ export function TaskStream({
           gap: 14,
         }}
       >
-        <div style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--ink)', fontWeight: 500 }}>
-          Nothing yet
-        </div>
-        <div style={{ fontSize: 14, letterSpacing: '0.08em', color: 'var(--muted)' }}>
-          Add work to begin
-        </div>
+        {/* Set as a task is: the line stands where the first title will, so it reads as the
+            list's own text rather than a label about it. */}
+        <div style={{ ...taskText, color: 'var(--muted)' }}>Nothing to see here.</div>
+        {/* Secondary, because the top bar's filled copy of this is on screen at the same time —
+            two primaries would argue over which one is the way in. `flex-start` because the
+            column stretches its children, and a full-width button here reads as a banner. */}
+        <button
+          data-secondarybtn=""
+          onClick={onAddWork}
+          style={{ ...secondaryIconLabelBtn, alignSelf: 'flex-start', marginTop: 4 }}
+        >
+          <PlusIcon />
+          Add work
+        </button>
       </div>
     );
   }

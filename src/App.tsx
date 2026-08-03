@@ -88,6 +88,7 @@ function Today({ userId }: { userId: string }) {
             onFocus={actions.enterFocus}
             onRemove={actions.removeTask}
             onAnchor={actions.saveAnchor}
+            onAddWork={actions.openCapture}
           />
         </div>
       </div>
