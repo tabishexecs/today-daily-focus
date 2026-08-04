@@ -29,7 +29,7 @@ export interface Task extends StoredTask {
   striking: boolean;
 }
 
-export type PomoPhase = 'focus' | 'break';
+export type PomoPhase = 'focus' | 'break' | 'longBreak';
 
 /** The pomodoro panel's top-left corner, as fractions of the window. */
 export interface PanelPos {
@@ -60,6 +60,11 @@ export interface UiState {
   pomoPhase: PomoPhase;
   /** Seconds still to go in `pomoPhase`. */
   pomoLeft: number;
+  /**
+   * Focus phases finished since the last long break, so the fourth one can hand over to the
+   * longer rest. Counts completions, not starts: the focus in progress is not in here yet.
+   */
+  pomoDone: number;
   /** Null until the panel is first moved, which is what leaves it pinned to its corner. */
   pomodoroPos: PanelPos | null;
   compact: boolean;
@@ -74,6 +79,21 @@ export const NOTE_MIN_H = 104;
 
 export const FOCUS_TOTAL = 1500; // 25:00
 export const BREAK_TOTAL = 300; // 5:00
+export const LONG_BREAK_TOTAL = 900; // 15:00
 
-export const totalFor = (phase: PomoPhase): number =>
-  phase === 'break' ? BREAK_TOTAL : FOCUS_TOTAL;
+/**
+ * Focus phases per long break. Cirillo's four: three short breaks are enough to carry you
+ * through a set, and the rest that follows has to be long enough to leave the desk for.
+ */
+export const LONG_BREAK_EVERY = 4;
+
+export const totalFor = (phase: PomoPhase): number => {
+  switch (phase) {
+    case 'break':
+      return BREAK_TOTAL;
+    case 'longBreak':
+      return LONG_BREAK_TOTAL;
+    default:
+      return FOCUS_TOTAL;
+  }
+};

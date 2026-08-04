@@ -1,4 +1,4 @@
-import { totalFor } from './types';
+import { LONG_BREAK_EVERY, totalFor } from './types';
 import type { PomoPhase, TaskId, UiState } from './types';
 
 /** UI state only — tasks are Convex mutations, so these are the local half of those flows. */
@@ -76,8 +76,18 @@ export function reducer(state: UiState, action: Action): UiState {
       if (state.pomoRunning) {
         if (state.pomoLeft > 1) next = { ...next, pomoLeft: next.pomoLeft - 1 };
         else {
-          const phase: PomoPhase = state.pomoPhase === 'focus' ? 'break' : 'focus';
-          next = { ...next, pomoPhase: phase, pomoLeft: totalFor(phase) };
+          // A finished focus is one of the set; the fourth earns the long break and closes the
+          // set out. Either break hands back to focus with the count as the focus left it.
+          const done = state.pomoPhase === 'focus' ? state.pomoDone + 1 : state.pomoDone;
+          const long = state.pomoPhase === 'focus' && done >= LONG_BREAK_EVERY;
+          const phase: PomoPhase =
+            state.pomoPhase === 'focus' ? (long ? 'longBreak' : 'break') : 'focus';
+          next = {
+            ...next,
+            pomoPhase: phase,
+            pomoLeft: totalFor(phase),
+            pomoDone: long ? 0 : done,
+          };
         }
       }
       return next;

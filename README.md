@@ -5,7 +5,8 @@ Every task lives in one stream; only the three inside the **band** are legible a
 everything above and below fades to a ghost. Scrolling brings the whole list up to full
 legibility so you can navigate; when you stop, the three you landed on light up and the rest
 recede. A per-task **Focus mode** provides an iPhone-style Now Playing card plus an
-auto-cycling Pomodoro timer (25 min focus → 5 min break → repeat).
+auto-cycling Pomodoro timer (25 min focus → 5 min break, and a 15 min long break after every
+fourth focus).
 
 Originally a recreation of the `design_handoff_daily_focus` spec, which framed the app around
 dragging exactly three goals from a Queue sidebar into Today and locking the day. That model
@@ -86,7 +87,7 @@ needs a custom domain — Clerk requires DNS records on a domain you control, wh
 | `convex/tasks.ts` | `list` query, `add` / `complete` / `remove` mutations — all scoped to the caller |
 | `convex/auth.config.ts` | Which Clerk instance's JWTs the backend trusts |
 | `src/main.tsx` | Mounts the app inside `<ClerkProvider>` → `<ConvexProviderWithClerk>` |
-| `src/types.ts` | Domain types + timer constants (`FOCUS_TOTAL`, `BREAK_TOTAL`) |
+| `src/types.ts` | Domain types + timer constants (`FOCUS_TOTAL`, `BREAK_TOTAL`, `LONG_BREAK_TOTAL`, `LONG_BREAK_EVERY`) |
 | `src/reducer.ts` | Pure UI state transitions (all `UiState` changes) |
 | `src/useToday.ts` | Hook: joins the Convex query with local strike state, owns the mutations and their optimistic updates, the Pomodoro timer, capture, and outside-click dismissal |
 | `src/util.ts` | `MM:SS` formatting, date string, side padding |

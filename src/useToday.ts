@@ -62,6 +62,7 @@ function initialUiState(userId: string): UiState {
     pomoRunning: false,
     pomoPhase: 'focus',
     pomoLeft: FOCUS_TOTAL,
+    pomoDone: 0,
     pomodoroPos: readPanelPos(userId),
     compact: typeof window !== 'undefined' && window.innerWidth < 720,
   };
