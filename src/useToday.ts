@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import type { OptimisticLocalStore } from 'convex/browser';
 import { api } from '../convex/_generated/api';
+import { playChime, unlockChime } from './chime';
 import { reducer } from './reducer';
-import { FOCUS_TOTAL } from './types';
+import { totalFor } from './types';
 import type { Note, NoteId, PanelPos, StoredTask, Task, TaskId, UiState } from './types';
 
 /**
@@ -61,7 +62,9 @@ function initialUiState(userId: string): UiState {
     // started itself would be counting down something nobody had asked for.
     pomoRunning: false,
     pomoPhase: 'focus',
-    pomoLeft: FOCUS_TOTAL,
+    // Through `totalFor`, like every other phase length — a hardcoded total here would be the
+    // one clock `?fast` could not shorten.
+    pomoLeft: totalFor('focus'),
     pomoDone: 0,
     pomodoroPos: readPanelPos(userId),
     compact: typeof window !== 'undefined' && window.innerWidth < 720,
@@ -193,6 +196,16 @@ export function useToday(userId: string) {
     },
     [userId],
   );
+
+  /**
+   * The play/pause the alarm is downstream of. The browser will not let a page make a sound
+   * until it has been touched, so the gesture that starts the clock is also what gives the
+   * chime a voice — twenty-five minutes ahead of it being needed.
+   */
+  const pomoToggle = useCallback(() => {
+    unlockChime();
+    dispatch({ type: 'POMO_TOGGLE' });
+  }, []);
 
   // --- Multi-step orchestrations (timeouts live here, not in the reducer) ---
 
@@ -369,6 +382,16 @@ export function useToday(userId: string) {
     return () => clearInterval(id);
   }, []);
 
+  // The alarm. A phase only changes where one ran out, so the change is the event — the
+  // reducer stays pure and the sound hangs off what it did. The first render sets the mark
+  // without ringing: arriving at a paused focus is not a phase ending.
+  const rungFor = useRef(state.pomoPhase);
+  useEffect(() => {
+    const from = rungFor.current;
+    rungFor.current = state.pomoPhase;
+    if (from !== state.pomoPhase) playChime(state.pomoPhase);
+  }, [state.pomoPhase]);
+
   const actions = {
     dispatch,
     complete,
@@ -387,7 +410,7 @@ export function useToday(userId: string) {
     removeNote,
     exitFocus,
     focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE' }),
-    pomoToggle: () => dispatch({ type: 'POMO_TOGGLE' }),
+    pomoToggle,
     pomoReset: () => dispatch({ type: 'POMO_RESET' }),
     movePomodoro,
     inputRef,
