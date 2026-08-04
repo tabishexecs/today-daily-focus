@@ -87,6 +87,10 @@ export function reducer(state: UiState, action: Action): UiState {
             pomoPhase: phase,
             pomoLeft: totalFor(phase),
             pomoDone: long ? 0 : done,
+            // Every hand-over stops here. A break that starts itself is counting rest nobody
+            // has taken yet, and a focus that starts itself is counting work nobody has come
+            // back to — the chime says the phase ended, and play says the next one begins.
+            pomoRunning: false,
           };
         }
       }

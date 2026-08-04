@@ -5,8 +5,8 @@ Every task lives in one stream; only the three inside the **band** are legible a
 everything above and below fades to a ghost. Scrolling brings the whole list up to full
 legibility so you can navigate; when you stop, the three you landed on light up and the rest
 recede. A per-task **Focus mode** provides an iPhone-style Now Playing card plus an
-auto-cycling Pomodoro timer (25 min focus → 5 min break, and a 15 min long break after every
-fourth focus) that chimes on every hand-over.
+Pomodoro timer (25 min focus → 5 min break, and a 15 min long break after every fourth focus)
+that chimes on every hand-over and waits on the play button before the next phase starts.
 
 Originally a recreation of the `design_handoff_daily_focus` spec, which framed the app around
 dragging exactly three goals from a Queue sidebar into Today and locking the day. That model
@@ -155,6 +155,11 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   and self-heals on the next write. This and the pomodoro panel's position (`.pomodoro`) are
   all that is left in `localStorage`, and deliberately so: both describe where *this* screen is
   looking, so syncing them would let one device scroll or rearrange another.
+- **The pomodoro pauses at every hand-over.** A phase that runs out loads the next one and its
+  full length, then stops: the chime says a phase ended, and the play button says the next one
+  begins. A break that starts itself counts rest nobody has taken yet, and a focus that starts
+  itself counts work nobody has come back to — neither number is true, and both are the ones
+  the panel is showing.
 - **The alarm is synthesised, not a file** (`chime.ts`): a sine fundamental plus one bell
   partial, struck with a near-instant attack and left to decay. Each phase gets its own motif —
   the breaks fall, the return to focus rises, the long break falls furthest and rings longest —
