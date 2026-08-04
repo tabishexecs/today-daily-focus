@@ -20,6 +20,13 @@ interface Props {
   onMove: (x: number, y: number) => void;
 }
 
+/** Named, because a break that runs three times as long has to say so. */
+const PHASE_NAME: Record<PomoPhase, string> = {
+  focus: 'Focus',
+  break: 'Break',
+  longBreak: 'Long break',
+};
+
 const PHASE_LABEL: CSSProperties = {
   fontFamily: APP_FONT,
   fontSize: 10,
@@ -99,7 +106,8 @@ export function PomodoroPanel({
   // Guarded: a phase change and this render are a tick apart at worst, and a wave longer than
   // its span would run out past the end of the box.
   const done = Math.min(1, Math.max(0, (total - left) / total));
-  const accent = phase === 'break' ? 'var(--muted)' : 'var(--primary)';
+  // Both breaks are rest, so both recede to the same grey — the label is what tells them apart.
+  const accent = phase === 'focus' ? 'var(--primary)' : 'var(--muted)';
 
   const activeW = done * SPAN;
   // Where the track is squeezed to nothing its round cap draws the dot M3 leaves as a stop
@@ -218,9 +226,7 @@ export function PomodoroPanel({
       }}
     >
       {/* In the colour its own progress is drawn in, so tag and wave name the phase together. */}
-      <span style={{ ...PHASE_LABEL, color: accent, display: 'block' }}>
-        {phase === 'break' ? 'Break' : 'Focus'}
-      </span>
+      <span style={{ ...PHASE_LABEL, color: accent, display: 'block' }}>{PHASE_NAME[phase]}</span>
 
       <div
         style={{
