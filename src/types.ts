@@ -87,13 +87,33 @@ export const LONG_BREAK_TOTAL = 900; // 15:00
  */
 export const LONG_BREAK_EVERY = 4;
 
-export const totalFor = (phase: PomoPhase): number => {
-  switch (phase) {
-    case 'break':
-      return BREAK_TOTAL;
-    case 'longBreak':
-      return LONG_BREAK_TOTAL;
-    default:
-      return FOCUS_TOTAL;
-  }
+const PHASE_TOTAL: Record<PomoPhase, number> = {
+  focus: FOCUS_TOTAL,
+  break: BREAK_TOTAL,
+  longBreak: LONG_BREAK_TOTAL,
 };
+
+/**
+ * Development only: `?fast` on the URL divides every phase by 60, putting the whole set —
+ * three short breaks, the long one, and all five chimes — inside three minutes instead of two
+ * hours. `?fast=<n>` divides by `n` instead.
+ *
+ * Behind `import.meta.env.DEV`, so the flag does not exist in a built app and no one's real
+ * pomodoro can be shortened by a link. Read once: a factor that changed under a running clock
+ * would leave `pomoLeft` past the total it is drawn against.
+ */
+function fastFactor(): number {
+  if (!import.meta.env.DEV || typeof window === 'undefined') return 1;
+  const raw = new URLSearchParams(window.location.search).get('fast');
+  if (raw === null) return 1;
+  const n = Number(raw);
+  // `?fast` alone arrives as an empty string, which `Number` reads as 0. Anything that isn't a
+  // usable divisor means the same thing as the bare flag: as fast as it goes.
+  return Number.isFinite(n) && n >= 1 ? n : 60;
+}
+
+const FAST = fastFactor();
+
+/** At least a second, so a large `?fast` cannot produce a phase that ends before it starts. */
+export const totalFor = (phase: PomoPhase): number =>
+  Math.max(1, Math.round(PHASE_TOTAL[phase] / FAST));

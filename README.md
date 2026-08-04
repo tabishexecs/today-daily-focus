@@ -6,7 +6,7 @@ everything above and below fades to a ghost. Scrolling brings the whole list up 
 legibility so you can navigate; when you stop, the three you landed on light up and the rest
 recede. A per-task **Focus mode** provides an iPhone-style Now Playing card plus an
 auto-cycling Pomodoro timer (25 min focus → 5 min break, and a 15 min long break after every
-fourth focus).
+fourth focus) that chimes on every hand-over.
 
 Originally a recreation of the `design_handoff_daily_focus` spec, which framed the app around
 dragging exactly three goals from a Queue sidebar into Today and locking the day. That model
@@ -90,6 +90,7 @@ needs a custom domain — Clerk requires DNS records on a domain you control, wh
 | `src/types.ts` | Domain types + timer constants (`FOCUS_TOTAL`, `BREAK_TOTAL`, `LONG_BREAK_TOTAL`, `LONG_BREAK_EVERY`) |
 | `src/reducer.ts` | Pure UI state transitions (all `UiState` changes) |
 | `src/useToday.ts` | Hook: joins the Convex query with local strike state, owns the mutations and their optimistic updates, the Pomodoro timer, capture, and outside-click dismissal |
+| `src/chime.ts` | The pomodoro's alarm — a struck bell per phase, synthesised in WebAudio |
 | `src/util.ts` | `MM:SS` formatting, date string, side padding |
 | `src/App.tsx` | Auth gate, then layout + derived view values |
 | `src/components/` | `TopBar`, `TaskStream`, `CaptureBar`, `FocusMode`, `SignInScreen`, `icons` |
@@ -151,9 +152,24 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   change and keeps naming the same task when work is added above it. Written on scroll settle
   and whenever the list changes; applied in a `useLayoutEffect` before the first paint, so
   there is no visible jump from the top. A stale id (task since deleted) falls back to the top
-  and self-heals on the next write. This is the only thing left in `localStorage`, and
-  deliberately so: it is where *this* screen is looking, so syncing it would let one device
-  scroll another.
+  and self-heals on the next write. This and the pomodoro panel's position (`.pomodoro`) are
+  all that is left in `localStorage`, and deliberately so: both describe where *this* screen is
+  looking, so syncing them would let one device scroll or rearrange another.
+- **The alarm is synthesised, not a file** (`chime.ts`): a sine fundamental plus one bell
+  partial, struck with a near-instant attack and left to decay. Each phase gets its own motif —
+  the breaks fall, the return to focus rises, the long break falls furthest and rings longest —
+  so what is starting is audible without looking. It hangs off the *phase change* in an effect,
+  which keeps the reducer pure, and the browser's autoplay policy is answered by resuming the
+  `AudioContext` from the panel's own controls: the click that starts the clock is the gesture
+  that gives the chime a voice, twenty-five minutes ahead of it being needed. There is no mute
+  — the panel holds two controls and the clock, and a timer only sounds while you have set it
+  running.
+- **The timer can be run fast in development.** `?fast` on the URL divides every phase by 60 —
+  a 25s focus, a 5s break, a 15s long break — so the whole set and all five chimes can be
+  watched and heard in about two minutes; `?fast=<n>` divides by `n` instead. It is read once,
+  at load, and guarded by `import.meta.env.DEV`, so it is absent from a built app and no link
+  can shorten a real pomodoro. Every phase length goes through `totalFor`, which is what makes
+  one flag enough.
 - **Capture** floats as a rounded white card above the bottom edge; Enter adds to the top of
   the stream and the stream scrolls up to meet it, Escape or a click outside dismisses.
 - **Auth** is [Clerk](https://clerk.com/docs/react/getting-started/quickstart). `App` gates on
