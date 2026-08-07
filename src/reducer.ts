@@ -1,20 +1,25 @@
-import { LONG_BREAK_EVERY, totalFor } from './types';
-import type { PomoPhase, TaskId, UiState } from './types';
+import { focusElapsedMs } from './types';
+import type { TaskId, UiState } from './types';
 
-/** UI state only — tasks are Convex mutations, so these are the local half of those flows. */
+/**
+ * UI state only — tasks are Convex mutations, so these are the local half of those flows, and
+ * the pomodoro is a Convex row, so it has no actions here at all.
+ *
+ * The three focus actions carry `now`. A reducer may not read the clock — same input, same
+ * output — so the caller reads it and passes it in. That is the only ceremony the wall-clock
+ * stopwatch costs, and there is no `TICK`: nothing accumulates, so nothing needs telling that
+ * a second went by.
+ */
 export type Action =
   | { type: 'STRIKE'; id: TaskId }
   | { type: 'STRIKE_DONE'; id: TaskId }
   | { type: 'OPEN_CAPTURE' }
   | { type: 'CLOSE_CAPTURE' }
   | { type: 'SET_CAPTURE_TEXT'; text: string }
-  | { type: 'ENTER_FOCUS'; id: TaskId }
-  | { type: 'EXIT_FOCUS' }
-  | { type: 'FOCUS_TOGGLE' }
-  | { type: 'POMO_TOGGLE' }
-  | { type: 'POMO_RESET' }
+  | { type: 'ENTER_FOCUS'; id: TaskId; now: number }
+  | { type: 'EXIT_FOCUS'; now: number }
+  | { type: 'FOCUS_TOGGLE'; now: number }
   | { type: 'MOVE_POMODORO'; x: number; y: number }
-  | { type: 'TICK' }
   | { type: 'SET_COMPACT'; compact: boolean };
 
 export function reducer(state: UiState, action: Action): UiState {
@@ -46,56 +51,27 @@ export function reducer(state: UiState, action: Action): UiState {
         ...state,
         focusId: action.id,
         focusTimerId: action.id,
-        focusElapsed: resumed ? state.focusElapsed : 0,
-        focusRunning: true,
+        focusBaseMs: resumed ? state.focusBaseMs : 0,
+        focusStartedAt: action.now,
         captureOpen: false,
       };
     }
-    // The stopwatch stops but is not cleared: `focusTimerId` still names the task holding it.
+    // The stopwatch stops but is not cleared: `focusTimerId` still names the task holding it,
+    // and the run in progress is banked so re-entering resumes from the right number.
     case 'EXIT_FOCUS':
-      return { ...state, focusId: null, focusRunning: false };
+      return {
+        ...state,
+        focusId: null,
+        focusBaseMs: focusElapsedMs(state, action.now),
+        focusStartedAt: null,
+      };
     case 'FOCUS_TOGGLE':
-      return { ...state, focusRunning: !state.focusRunning };
-
-    case 'POMO_TOGGLE':
-      return { ...state, pomoRunning: !state.pomoRunning };
-    case 'POMO_RESET':
-      return { ...state, pomoLeft: totalFor(state.pomoPhase), pomoRunning: false };
+      return state.focusStartedAt === null
+        ? { ...state, focusStartedAt: action.now }
+        : { ...state, focusBaseMs: focusElapsedMs(state, action.now), focusStartedAt: null };
 
     case 'MOVE_POMODORO':
       return { ...state, pomodoroPos: { x: action.x, y: action.y } };
-
-    // Both clocks run off the one second, and each is gated on its own. Returning `state`
-    // untouched when neither is going is what keeps a permanently mounted panel from
-    // re-rendering the app every second it sits paused.
-    case 'TICK': {
-      const focusOn = state.focusId != null && state.focusRunning;
-      if (!focusOn && !state.pomoRunning) return state;
-      let next = state;
-      if (focusOn) next = { ...next, focusElapsed: next.focusElapsed + 1 };
-      if (state.pomoRunning) {
-        if (state.pomoLeft > 1) next = { ...next, pomoLeft: next.pomoLeft - 1 };
-        else {
-          // A finished focus is one of the set; the fourth earns the long break and closes the
-          // set out. Either break hands back to focus with the count as the focus left it.
-          const done = state.pomoPhase === 'focus' ? state.pomoDone + 1 : state.pomoDone;
-          const long = state.pomoPhase === 'focus' && done >= LONG_BREAK_EVERY;
-          const phase: PomoPhase =
-            state.pomoPhase === 'focus' ? (long ? 'longBreak' : 'break') : 'focus';
-          next = {
-            ...next,
-            pomoPhase: phase,
-            pomoLeft: totalFor(phase),
-            pomoDone: long ? 0 : done,
-            // Every hand-over stops here. A break that starts itself is counting rest nobody
-            // has taken yet, and a focus that starts itself is counting work nobody has come
-            // back to — the chime says the phase ended, and play says the next one begins.
-            pomoRunning: false,
-          };
-        }
-      }
-      return next;
-    }
 
     case 'SET_COMPACT':
       return state.compact === action.compact ? state : { ...state, compact: action.compact };

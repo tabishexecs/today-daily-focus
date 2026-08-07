@@ -27,4 +27,28 @@ export default defineSchema({
     w: v.optional(v.number()),
     h: v.optional(v.number()),
   }).index('by_task', ['taskId']),
+
+  /**
+   * One row per user — the session's clock, which is why it is not per-task and not per-device.
+   *
+   * A deadline rather than a countdown. The old client decremented a counter once per
+   * `setInterval` callback, which made elapsed time mean "how often the browser chose to run
+   * me": a background tab is throttled to one callback a minute, and a sleeping machine runs
+   * none at all, so the clock silently stopped whenever it was not being watched. `endsAt` is
+   * a fact about when the phase is over, so no code has to run for time to pass.
+   *
+   * The two fields are exclusive, and which one is set is also what "running" means:
+   * `endsAt` holds it while the clock runs, `leftMs` while it is paused. Storing both at once
+   * would leave two answers to the same question and no rule for which is older.
+   */
+  pomodoro: defineTable({
+    userId: v.string(),
+    phase: v.union(v.literal('focus'), v.literal('break'), v.literal('longBreak')),
+    /** Epoch ms **on the server's clock**, or null while paused. See `pomodoro.sync`. */
+    endsAt: v.union(v.number(), v.null()),
+    /** Milliseconds still to go, meaningful only while `endsAt` is null. */
+    leftMs: v.number(),
+    /** Focus phases finished since the last long break. */
+    done: v.number(),
+  }).index('by_user', ['userId']),
 });

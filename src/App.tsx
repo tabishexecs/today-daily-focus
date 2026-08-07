@@ -30,7 +30,8 @@ function SignedIn() {
 }
 
 function Today({ userId }: { userId: string }) {
-  const { state, tasks, notes, loading, actions, initialAnchorId } = useToday(userId);
+  const { state, tasks, notes, loading, actions, initialAnchorId, pomo, focusElapsed } =
+    useToday(userId);
   const c = state.compact;
   const sidePad = sidePadFor(c);
   const topPad = topPadFor(c);
@@ -106,8 +107,8 @@ function Today({ userId }: { userId: string }) {
       {focusTask && (
         <FocusMode
           task={focusTask.text}
-          running={state.focusRunning}
-          elapsed={state.focusElapsed}
+          running={state.focusStartedAt !== null}
+          elapsed={focusElapsed}
           sidePad={sidePad}
           notes={notes}
           onToggle={actions.focusToggle}
@@ -126,9 +127,9 @@ function Today({ userId }: { userId: string }) {
           panel, so there is nothing to unmount, remount, re-place or re-animate — the same
           element keeps counting through the change. */}
       <PomodoroPanel
-        phase={state.pomoPhase}
-        left={state.pomoLeft}
-        running={state.pomoRunning}
+        phase={pomo.phase}
+        left={pomo.left}
+        running={pomo.running}
         pos={state.pomodoroPos}
         sidePad={sidePad}
         onToggle={actions.pomoToggle}

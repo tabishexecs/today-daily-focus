@@ -10,6 +10,7 @@
 
 import type * as helpers from "../helpers.js";
 import type * as notes from "../notes.js";
+import type * as pomodoro from "../pomodoro.js";
 import type * as tasks from "../tasks.js";
 
 import type {
@@ -21,6 +22,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
   notes: typeof notes;
+  pomodoro: typeof pomodoro;
   tasks: typeof tasks;
 }>;
 

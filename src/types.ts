@@ -38,10 +38,15 @@ export interface PanelPos {
 }
 
 /**
- * Everything the reducer owns. The task list is not here — Convex owns it.
+ * Everything the reducer owns. The task list is not here — Convex owns it, and so is the
+ * pomodoro: its clock outlives this tab, so it lives in `api.pomodoro` rather than in here.
  *
- * Two clocks, and they are not the same one read from both ends: the pomodoro is the session's,
- * counting down whatever is on screen, while `focusElapsed` is a stopwatch on one task.
+ * Two clocks still, and they are not the same one read from both ends: the pomodoro is the
+ * session's, counting down whatever is on screen, while this one is a stopwatch on one task.
+ *
+ * Both are stored the same way, and neither is a counter that something has to tick. Elapsed
+ * time is `now - focusStartedAt`, worked out at the moment it is drawn, so it stays right
+ * across a backgrounded tab, a throttled timer and a closed lid — none of which run any code.
  */
 export interface UiState {
   striking: TaskId[];
@@ -53,22 +58,21 @@ export interface UiState {
    * what lets the same task be picked back up at the time it was left at.
    */
   focusTimerId: TaskId | null;
-  focusRunning: boolean;
-  /** Seconds spent on `focusTimerId`. Counts up, against no total. */
-  focusElapsed: number;
-  pomoRunning: boolean;
-  pomoPhase: PomoPhase;
-  /** Seconds still to go in `pomoPhase`. */
-  pomoLeft: number;
   /**
-   * Focus phases finished since the last long break, so the fourth one can hand over to the
-   * longer rest. Counts completions, not starts: the focus in progress is not in here yet.
+   * Epoch ms at which the stopwatch was last started, or null while it is paused. Doubles as
+   * "is it running": one field cannot disagree with itself.
    */
-  pomoDone: number;
+  focusStartedAt: number | null;
+  /** Milliseconds banked on `focusTimerId` before the current run. */
+  focusBaseMs: number;
   /** Null until the panel is first moved, which is what leaves it pinned to its corner. */
   pomodoroPos: PanelPos | null;
   compact: boolean;
 }
+
+/** Milliseconds on `focusTimerId` as of `now`, running or not. */
+export const focusElapsedMs = (state: UiState, now: number): number =>
+  state.focusBaseMs + (state.focusStartedAt === null ? 0 : Math.max(0, now - state.focusStartedAt));
 
 /** Mirrors `NOTE_MAX` in `convex/notes.ts`, which rejects anything longer. */
 export const NOTE_MAX = 2000;
@@ -80,12 +84,6 @@ export const NOTE_MIN_H = 104;
 export const FOCUS_TOTAL = 1500; // 25:00
 export const BREAK_TOTAL = 300; // 5:00
 export const LONG_BREAK_TOTAL = 900; // 15:00
-
-/**
- * Focus phases per long break. Cirillo's four: three short breaks are enough to carry you
- * through a set, and the rest that follows has to be long enough to leave the desk for.
- */
-export const LONG_BREAK_EVERY = 4;
 
 const PHASE_TOTAL: Record<PomoPhase, number> = {
   focus: FOCUS_TOTAL,
@@ -117,3 +115,17 @@ const FAST = fastFactor();
 /** At least a second, so a large `?fast` cannot produce a phase that ends before it starts. */
 export const totalFor = (phase: PomoPhase): number =>
   Math.max(1, Math.round(PHASE_TOTAL[phase] / FAST));
+
+/**
+ * The same lengths in milliseconds, as `api.pomodoro.*` wants them. Sent with every mutation
+ * rather than duplicated on the server, which is what keeps `?fast` shortening the real clock
+ * instead of only the one this tab draws.
+ *
+ * A module constant because `FAST` is read once: a factor that changed under a running clock
+ * would leave a deadline that no longer matches the total it is drawn against.
+ */
+export const PHASE_MS: Record<PomoPhase, number> = {
+  focus: totalFor('focus') * 1000,
+  break: totalFor('break') * 1000,
+  longBreak: totalFor('longBreak') * 1000,
+};

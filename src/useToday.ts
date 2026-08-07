@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import type { OptimisticLocalStore } from 'convex/browser';
 import { api } from '../convex/_generated/api';
 import { playChime, unlockChime } from './chime';
 import { reducer } from './reducer';
-import { totalFor } from './types';
-import type { Note, NoteId, PanelPos, StoredTask, Task, TaskId, UiState } from './types';
+import { focusElapsedMs, PHASE_MS } from './types';
+import type { Note, NoteId, PanelPos, PomoPhase, StoredTask, Task, TaskId, UiState } from './types';
 
 /**
  * Which task the band was centred on last. An id rather than a pixel offset, so it survives a
@@ -56,20 +56,48 @@ function initialUiState(userId: string): UiState {
     captureText: '',
     focusId: null,
     focusTimerId: null,
-    focusRunning: false,
-    focusElapsed: 0,
-    // Paused at a full pomodoro: the panel is on screen from the first paint, and a clock that
-    // started itself would be counting down something nobody had asked for.
-    pomoRunning: false,
-    pomoPhase: 'focus',
-    // Through `totalFor`, like every other phase length — a hardcoded total here would be the
-    // one clock `?fast` could not shorten.
-    pomoLeft: totalFor('focus'),
-    pomoDone: 0,
+    focusStartedAt: null,
+    focusBaseMs: 0,
     pomodoroPos: readPanelPos(userId),
     compact: typeof window !== 'undefined' && window.innerWidth < 720,
   };
 }
+
+/** What `api.pomodoro.get` returns once the row exists. */
+interface PomoRow {
+  phase: PomoPhase;
+  endsAt: number | null;
+  leftMs: number;
+  done: number;
+}
+
+/**
+ * Stood in for the row until the first press creates it, and by the optimistic updates below,
+ * which have to answer for a clock nobody has started yet.
+ *
+ * Paused at a full pomodoro: the panel is on screen from the first paint, and a clock that
+ * started itself would be counting down something nobody had asked for.
+ */
+const UNSTARTED: PomoRow = { phase: 'focus', endsAt: null, leftMs: PHASE_MS.focus, done: 0 };
+
+/** What the panel is given: the row, resolved against a clock. */
+export interface PomoView {
+  phase: PomoPhase;
+  /** Seconds still to go in `phase`. */
+  left: number;
+  running: boolean;
+}
+
+/**
+ * How often the clocks are re-read, which is not the same thing as how fast they run — they
+ * run on their own and this only decides how soon the screen catches up.
+ *
+ * Four times the second being displayed. Sampling at the display's own rate would let a
+ * countdown hold one number for two ticks and skip the next, because the sample points and the
+ * second boundaries drift against each other. Nothing accumulates here, so an interval that is
+ * throttled, delayed or skipped entirely costs a late repaint and never a lost second.
+ */
+const SAMPLE_MS = 250;
 
 /**
  * @param userId Clerk user id, used only to key what this browser keeps to itself. Task
@@ -136,6 +164,116 @@ export function useToday(userId: string) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   // Read once: after mount the stream owns the live scroll position.
   const initialAnchorId = useRef(readAnchor(userId)).current;
+
+  // --- The clocks ---
+
+  const pomoRow = useQuery(api.pomodoro.get) ?? null;
+
+  /**
+   * Server time minus this browser's, learned from any mutation's reply.
+   *
+   * `endsAt` is written on the server's clock and read against this one, and nothing guarantees
+   * they agree — a device an hour out would draw an hour-wrong pomodoro. Kept in state so a
+   * correction repaints, and mirrored into a ref because the optimistic updates below run
+   * outside render and would otherwise close over whatever it was when they were built.
+   */
+  const [skew, setSkew] = useState(0);
+  const skewRef = useRef(skew);
+  skewRef.current = skew;
+
+  const syncClock = useMutation(api.pomodoro.sync);
+  const learnSkew = useCallback((serverNow: number) => setSkew(serverNow - Date.now()), []);
+
+  // Once, on mount. A pomodoro left running on another device is already counting when this
+  // tab opens, and there is no press coming to correct the offset before it has to be drawn.
+  useEffect(() => {
+    void syncClock({})
+      .then((r) => learnSkew(r.now))
+      // A failed sync leaves the offset at zero, which is the old behaviour: the local clock,
+      // believed. Not worth a visible error — every later press gets another chance at it.
+      .catch(() => {});
+  }, [syncClock, learnSkew]);
+
+  const togglePomo = useMutation(api.pomodoro.toggle).withOptimisticUpdate((store) => {
+    // `undefined` is "not loaded", `null` is "loaded, never started" — only the first is a
+    // reason to show nothing.
+    const current = store.getQuery(api.pomodoro.get, {});
+    if (current === undefined) return;
+    const row = current ?? UNSTARTED;
+    const now = Date.now() + skewRef.current;
+    store.setQuery(
+      api.pomodoro.get,
+      {},
+      row.endsAt === null
+        ? { ...row, endsAt: now + row.leftMs }
+        : { ...row, endsAt: null, leftMs: Math.max(0, row.endsAt - now) },
+    );
+  });
+
+  const resetPomo = useMutation(api.pomodoro.reset).withOptimisticUpdate((store) => {
+    const current = store.getQuery(api.pomodoro.get, {});
+    if (current === undefined) return;
+    const row = current ?? UNSTARTED;
+    store.setQuery(api.pomodoro.get, {}, { ...row, endsAt: null, leftMs: PHASE_MS[row.phase] });
+  });
+
+  const advancePomo = useMutation(api.pomodoro.advance);
+
+  /**
+   * When the screen last read the clock. Not the clock itself — every displayed time is worked
+   * out from `Date.now()` at the moment it is drawn, and this only says how recently that was.
+   */
+  const [now, setNow] = useState(() => Date.now());
+
+  const pomoRunning = pomoRow?.endsAt != null;
+  const ticking = pomoRunning || state.focusStartedAt !== null;
+
+  // No interval at all while both clocks are stopped, which is most of the time a panel that is
+  // never dismissed spends on screen. `visibilitychange` is what makes a returning tab right
+  // immediately rather than one sample later, since a hidden tab's interval may have been
+  // throttled to once a minute.
+  useEffect(() => {
+    if (!ticking) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), SAMPLE_MS);
+    const onVisible = () => setNow(Date.now());
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [ticking]);
+
+  const pomo: PomoView = useMemo(() => {
+    const row = pomoRow ?? UNSTARTED;
+    const leftMs = row.endsAt === null ? row.leftMs : Math.max(0, row.endsAt - (now + skew));
+    return { phase: row.phase, left: Math.ceil(leftMs / 1000), running: row.endsAt !== null };
+  }, [pomoRow, now, skew]);
+
+  /** Seconds on the focused task. Derived the same way, from the same `now`. */
+  const focusElapsed = Math.floor(focusElapsedMs(state, now) / 1000);
+
+  /**
+   * Ask the server to hand over once the deadline has passed here. The server checks it again
+   * against its own clock and ignores us if it disagrees, so this is a nudge rather than the
+   * decision — which is what lets a second tab, or a laptop opened hours later, fire the same
+   * request harmlessly.
+   *
+   * The ref keeps one request per deadline: the sampler runs four times a second and the reply
+   * takes longer than that, so without it a slow round trip would be asked for repeatedly.
+   */
+  const askedFor = useRef<number | null>(null);
+  useEffect(() => {
+    const endsAt = pomoRow?.endsAt;
+    if (endsAt == null || now + skew < endsAt || askedFor.current === endsAt) return;
+    askedFor.current = endsAt;
+    void advancePomo({ durations: PHASE_MS })
+      .then((r) => learnSkew(r.now))
+      // Offline, most likely. Clearing the mark lets the next sample try again.
+      .catch(() => {
+        askedFor.current = null;
+      });
+  }, [pomoRow, now, skew, advancePomo, learnSkew]);
 
   /**
    * Rewrites the focused task's note list in the local cache. The mutations below carry only a
@@ -204,8 +342,16 @@ export function useToday(userId: string) {
    */
   const pomoToggle = useCallback(() => {
     unlockChime();
-    dispatch({ type: 'POMO_TOGGLE' });
-  }, []);
+    void togglePomo({ durations: PHASE_MS })
+      .then((r) => learnSkew(r.now))
+      .catch(() => {});
+  }, [togglePomo, learnSkew]);
+
+  const pomoReset = useCallback(() => {
+    void resetPomo({ durations: PHASE_MS })
+      .then((r) => learnSkew(r.now))
+      .catch(() => {});
+  }, [resetPomo, learnSkew]);
 
   // --- Multi-step orchestrations (timeouts live here, not in the reducer) ---
 
@@ -270,7 +416,7 @@ export function useToday(userId: string) {
 
   const exitFocus = useCallback(() => {
     flushNotes();
-    dispatch({ type: 'EXIT_FOCUS' });
+    dispatch({ type: 'EXIT_FOCUS', now: Date.now() });
   }, [flushNotes]);
 
   /** Strike through locally, then write the completion once the line finishes drawing. */
@@ -291,13 +437,13 @@ export function useToday(userId: string) {
   const enterFocus = useCallback((id: TaskId) => {
     const t = tasksRef.current.find((x) => x.id === id);
     if (!t || t.done || isOptimistic(id)) return;
-    dispatch({ type: 'ENTER_FOCUS', id });
+    dispatch({ type: 'ENTER_FOCUS', id, now: Date.now() });
   }, []);
 
   const focusComplete = useCallback(() => {
     const id = stateRef.current.focusId;
     flushNotes();
-    dispatch({ type: 'EXIT_FOCUS' });
+    dispatch({ type: 'EXIT_FOCUS', now: Date.now() });
     if (id != null) complete(id);
   }, [complete, flushNotes]);
 
@@ -307,7 +453,7 @@ export function useToday(userId: string) {
       if (stateRef.current.focusId === id) {
         // Don't flush: the task, and with it every note on it, is about to be gone.
         pendingNotes.current.clear();
-        dispatch({ type: 'EXIT_FOCUS' });
+        dispatch({ type: 'EXIT_FOCUS', now: Date.now() });
       }
       void deleteTask({ id });
     },
@@ -343,7 +489,8 @@ export function useToday(userId: string) {
   // Without this the card unmounts while the timer keeps running against a gone id.
   useEffect(() => {
     if (loading || state.focusId == null) return;
-    if (!tasks.some((t) => t.id === state.focusId)) dispatch({ type: 'EXIT_FOCUS' });
+    if (!tasks.some((t) => t.id === state.focusId))
+      dispatch({ type: 'EXIT_FOCUS', now: Date.now() });
   }, [loading, state.focusId, tasks]);
 
   // Outside-click to dismiss capture, and the compact breakpoint.
@@ -377,20 +524,21 @@ export function useToday(userId: string) {
     };
   }, []);
 
+  /**
+   * The alarm. A phase only changes where one ran out, so the change is the event — and now
+   * that the change is the server's, the sound follows a fact rather than a local countdown:
+   * a tab that was asleep through the whole phase rings when it wakes and finds it over.
+   *
+   * `null` until the first row arrives, so loading a pomodoro mid-break is silent. Arriving at
+   * a phase is not the same as watching one end.
+   */
+  const rungFor = useRef<PomoPhase | null>(null);
   useEffect(() => {
-    const id = setInterval(() => dispatch({ type: 'TICK' }), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  // The alarm. A phase only changes where one ran out, so the change is the event — the
-  // reducer stays pure and the sound hangs off what it did. The first render sets the mark
-  // without ringing: arriving at a paused focus is not a phase ending.
-  const rungFor = useRef(state.pomoPhase);
-  useEffect(() => {
+    if (pomoRow == null) return;
     const from = rungFor.current;
-    rungFor.current = state.pomoPhase;
-    if (from !== state.pomoPhase) playChime(state.pomoPhase);
-  }, [state.pomoPhase]);
+    rungFor.current = pomoRow.phase;
+    if (from !== null && from !== pomoRow.phase) playChime(pomoRow.phase);
+  }, [pomoRow]);
 
   const actions = {
     dispatch,
@@ -409,12 +557,12 @@ export function useToday(userId: string) {
     resizeNote,
     removeNote,
     exitFocus,
-    focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE' }),
+    focusToggle: () => dispatch({ type: 'FOCUS_TOGGLE', now: Date.now() }),
     pomoToggle,
-    pomoReset: () => dispatch({ type: 'POMO_RESET' }),
+    pomoReset,
     movePomodoro,
     inputRef,
   };
 
-  return { state, tasks, notes, loading, actions, initialAnchorId };
+  return { state, tasks, notes, loading, actions, initialAnchorId, pomo, focusElapsed };
 }

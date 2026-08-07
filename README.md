@@ -83,13 +83,14 @@ needs a custom domain — Clerk requires DNS records on a domain you control, wh
 
 | File | Responsibility |
 |---|---|
-| `convex/schema.ts` | The `tasks` table + its `by_user` index |
+| `convex/schema.ts` | The `tasks`, `notes` and `pomodoro` tables + their indexes |
 | `convex/tasks.ts` | `list` query, `add` / `complete` / `remove` mutations — all scoped to the caller |
+| `convex/pomodoro.ts` | The clock: `get` / `sync` + `toggle` / `reset` / `advance`, one row per user |
 | `convex/auth.config.ts` | Which Clerk instance's JWTs the backend trusts |
 | `src/main.tsx` | Mounts the app inside `<ClerkProvider>` → `<ConvexProviderWithClerk>` |
-| `src/types.ts` | Domain types + timer constants (`FOCUS_TOTAL`, `BREAK_TOTAL`, `LONG_BREAK_TOTAL`, `LONG_BREAK_EVERY`) |
+| `src/types.ts` | Domain types + phase lengths (`FOCUS_TOTAL`, `BREAK_TOTAL`, `LONG_BREAK_TOTAL`, `PHASE_MS`) |
 | `src/reducer.ts` | Pure UI state transitions (all `UiState` changes) |
-| `src/useToday.ts` | Hook: joins the Convex query with local strike state, owns the mutations and their optimistic updates, the Pomodoro timer, capture, and outside-click dismissal |
+| `src/useToday.ts` | Hook: joins the Convex query with local strike state, owns the mutations and their optimistic updates, the clock sampler, capture, and outside-click dismissal |
 | `src/chime.ts` | The pomodoro's alarm — a struck bell per phase, synthesised in WebAudio |
 | `src/util.ts` | `MM:SS` formatting, date string, side padding |
 | `src/App.tsx` | Auth gate, then layout + derived view values |
@@ -155,11 +156,43 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   and self-heals on the next write. This and the pomodoro panel's position (`.pomodoro`) are
   all that is left in `localStorage`, and deliberately so: both describe where *this* screen is
   looking, so syncing them would let one device scroll or rearrange another.
+- **Both clocks store a deadline, not a countdown.** The pomodoro is a `pomodoro` row holding
+  `endsAt` (epoch ms, server clock) while it runs and `leftMs` while it is paused — which of
+  the two is set is also what "running" means, so the state cannot contradict itself. The focus
+  stopwatch is the same shape in `UiState` (`focusStartedAt` + `focusBaseMs`). Nothing
+  accumulates and nothing has to be ticked: every displayed time is `now` minus a stored
+  instant, worked out at the moment it is drawn.
+
+  This is the whole reason the timer is correct in a background tab. The earlier version
+  decremented a counter once per `setInterval` callback, which quietly defined elapsed time as
+  *how often the browser chose to run us* — Chrome throttles a hidden tab's timers to one
+  callback a minute after five minutes, and a sleeping machine runs none at all, so a pomodoro
+  left in another tab lost roughly fifty-nine seconds in every minute and looked frozen. No
+  amount of propping the interval up (a Web Worker, a held Web Lock, looping silent audio to
+  stay "audible") fixes that, because none of them run while the lid is shut. Asking what time
+  it is does.
+
+  `setInterval` still exists, at 250 ms, but only as a **sampler**: it decides how soon the
+  screen catches up, never what the clock says, so a throttled or skipped tick costs a late
+  repaint and never a lost second. It runs only while something is actually counting, and a
+  `visibilitychange` listener resyncs a returning tab immediately rather than one sample later.
+- **The clock is the server's.** `endsAt` is written from Convex's `Date.now()`, so a reload,
+  a crash, or a second device picks up the same running pomodoro. Because it is written on one
+  clock and read against another, `pomodoro.sync` returns the server's time on mount and after
+  every mutation, and the client holds the offset — otherwise a device whose clock is an hour
+  out would draw an hour-wrong pomodoro, and be wrong silently.
 - **The pomodoro pauses at every hand-over.** A phase that runs out loads the next one and its
   full length, then stops: the chime says a phase ended, and the play button says the next one
   begins. A break that starts itself counts rest nobody has taken yet, and a focus that starts
   itself counts work nobody has come back to — neither number is true, and both are the ones
   the panel is showing.
+
+  The hand-over is `pomodoro.advance`, and it is the server that decides. A client asks for it
+  when it notices the deadline has passed; the mutation re-checks against its own clock and
+  does nothing if it disagrees, which is what makes the request safe to send from two tabs at
+  once or from a laptop opened three hours later. It advances **exactly one phase per call**,
+  never a catch-up run: coming back from lunch should find one break waiting, not a set of them
+  counted through in your absence.
 - **The alarm is synthesised, not a file** (`chime.ts`): a sine fundamental plus one bell
   partial, struck with a near-instant attack and left to decay. Each phase gets its own motif —
   the breaks fall, the return to focus rises, the long break falls furthest and rings longest —
@@ -174,7 +207,10 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   watched and heard in about two minutes; `?fast=<n>` divides by `n` instead. It is read once,
   at load, and guarded by `import.meta.env.DEV`, so it is absent from a built app and no link
   can shorten a real pomodoro. Every phase length goes through `totalFor`, which is what makes
-  one flag enough.
+  one flag enough — including the `PHASE_MS` the client sends to `convex/pomodoro.ts`. The
+  lengths travel with each mutation rather than being duplicated server-side precisely so that
+  one flag still reaches the real clock; a server that owned the numbers would leave `?fast`
+  shortening only the countdown this tab draws.
 - **Capture** floats as a rounded white card above the bottom edge; Enter adds to the top of
   the stream and the stream scrolls up to meet it, Escape or a click outside dismisses.
 - **Auth** is [Clerk](https://clerk.com/docs/react/getting-started/quickstart). `App` gates on
