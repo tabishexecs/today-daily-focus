@@ -72,8 +72,8 @@ interface PomoRow {
 }
 
 /**
- * Stood in for the row until the first press creates it, and by the optimistic updates below,
- * which have to answer for a clock nobody has started yet.
+ * A clock nobody has started: stood in for the row until the first press creates it, and landed
+ * back on by Reset, which puts the whole set back rather than only the phase in progress.
  *
  * Paused at a full pomodoro: the panel is on screen from the first paint, and a clock that
  * started itself would be counting down something nobody had asked for.
@@ -225,10 +225,11 @@ export function useToday(userId: string) {
   });
 
   const resetPomo = useMutation(api.pomodoro.reset).withOptimisticUpdate((store) => {
-    const current = store.getQuery(api.pomodoro.get, {});
-    if (current === undefined) return;
-    const row = current ?? UNSTARTED;
-    store.setQuery(api.pomodoro.get, {}, { ...row, endsAt: null, leftMs: PHASE_MS[row.phase] });
+    // Nothing of the old row survives a reset, so there is nothing to merge into — the state it
+    // lands in is exactly the one a clock that has never been started is in. The loading guard
+    // still applies: with no cached query there is nothing to amend.
+    if (store.getQuery(api.pomodoro.get, {}) === undefined) return;
+    store.setQuery(api.pomodoro.get, {}, UNSTARTED);
   });
 
   const advancePomo = useMutation(api.pomodoro.advance);
@@ -386,7 +387,16 @@ export function useToday(userId: string) {
       .catch(() => {});
   }, [togglePomo, learnSkew]);
 
+  /**
+   * Set by Reset so the alarm sits out the phase change it causes. Resetting during a break
+   * moves the clock back to focus, which is indistinguishable from a hand-over to an effect
+   * that only watches the phase — but the chime means a phase *ended*, and this one was
+   * abandoned. There is nothing to announce, and announcing it would be a lie about the set.
+   */
+  const resetting = useRef(false);
+
   const pomoReset = useCallback(() => {
+    resetting.current = true;
     void resetPomo({ durations: PHASE_MS })
       .then((r) => learnSkew(r.now))
       .catch(() => {});
@@ -576,7 +586,11 @@ export function useToday(userId: string) {
     if (pomoRow == null) return;
     const from = rungFor.current;
     rungFor.current = pomoRow.phase;
-    if (from !== null && from !== pomoRow.phase) playChime(pomoRow.phase);
+    // Consumed on the first update after the press whether or not that update moved the phase,
+    // so a silenced reset can never carry over and swallow a real hand-over later.
+    const silenced = resetting.current;
+    resetting.current = false;
+    if (from !== null && from !== pomoRow.phase && !silenced) playChime(pomoRow.phase);
   }, [pomoRow]);
 
   const actions = {

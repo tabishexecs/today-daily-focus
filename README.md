@@ -194,6 +194,13 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   itself counts work nobody has come back to — neither number is true, and both are the ones
   the panel is showing.
 
+  **Reset puts the whole set back**, not just the phase in progress: a full focus, paused, with
+  the count of finished focuses cleared — the same state a clock that has never been started is
+  in. It is the way out of a session that has gone wrong, and leaving three completed focuses
+  behind would mean the next reset ran a long break nothing had earned. It rings nothing:
+  resetting during a break moves the clock back to focus, which looks like a hand-over to the
+  effect watching the phase, but a chime says a phase *ended* and this one was abandoned.
+
   The hand-over is `pomodoro.advance`, and it is the server that decides. A client asks for it
   when it notices the deadline has passed; the mutation re-checks against its own clock and
   does nothing if it disagrees, which is what makes the request safe to send from two tabs at

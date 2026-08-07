@@ -136,12 +136,24 @@ export const toggle = mutation({
   },
 });
 
-/** Back to a full phase, paused. The phase itself and the set's count are left alone. */
+/**
+ * Back to the start of the set: a full focus phase, paused, with the count of finished focuses
+ * cleared. Not "restart this phase" — the button is the way out of a session that has gone
+ * wrong, and leaving three completed focuses behind would mean the next reset ran a long break
+ * that nothing had been earned by.
+ *
+ * The whole cycle, so also the only control that can move the clock backwards through a phase.
+ */
 export const reset = mutation({
   args: { durations },
   handler: async (ctx, { durations: d }) => {
     const row = await own(ctx, d);
-    await ctx.db.patch(row._id, { endsAt: null, leftMs: lengthOf(d, row.phase) });
+    await ctx.db.patch(row._id, {
+      phase: 'focus',
+      endsAt: null,
+      leftMs: lengthOf(d, 'focus'),
+      done: 0,
+    });
     return { now: Date.now() };
   },
 });
