@@ -220,10 +220,16 @@ export function useToday(userId: string) {
   const advancePomo = useMutation(api.pomodoro.advance);
 
   /**
-   * When the screen last read the clock. Not the clock itself — every displayed time is worked
-   * out from `Date.now()` at the moment it is drawn, and this only says how recently that was.
+   * The repaint pulse: a counter with no meaning of its own, bumped to say "read the clock
+   * again". It is not a time, and nothing is drawn from it.
+   *
+   * Holding a sampled `now` here instead is subtly wrong, and was wrong on screen. Nothing
+   * samples while both clocks are stopped — that is the point of the gate below — so the stored
+   * reading goes stale by however long the panel sits paused. The render that *starts* a clock
+   * then held a deadline taken from the live clock against a reading minutes older, and drew a
+   * phase longer than any phase is, for the one frame before an effect could correct it.
    */
-  const [now, setNow] = useState(() => Date.now());
+  const [pulse, resample] = useReducer((n: number) => n + 1, 0);
 
   const pomoRunning = pomoRow?.endsAt != null;
   const ticking = pomoRunning || state.focusStartedAt !== null;
@@ -232,11 +238,13 @@ export function useToday(userId: string) {
   // never dismissed spends on screen. `visibilitychange` is what makes a returning tab right
   // immediately rather than one sample later, since a hidden tab's interval may have been
   // throttled to once a minute.
+  //
+  // Nothing needs pulsing as this starts: the render that flipped `ticking` read the clock
+  // itself, like every other render does.
   useEffect(() => {
     if (!ticking) return;
-    setNow(Date.now());
-    const id = window.setInterval(() => setNow(Date.now()), SAMPLE_MS);
-    const onVisible = () => setNow(Date.now());
+    const id = window.setInterval(() => resample(), SAMPLE_MS);
+    const onVisible = () => resample();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(id);
@@ -244,14 +252,27 @@ export function useToday(userId: string) {
     };
   }, [ticking]);
 
-  const pomo: PomoView = useMemo(() => {
-    const row = pomoRow ?? UNSTARTED;
-    const leftMs = row.endsAt === null ? row.leftMs : Math.max(0, row.endsAt - (now + skew));
-    return { phase: row.phase, left: Math.ceil(leftMs / 1000), running: row.endsAt !== null };
-  }, [pomoRow, now, skew]);
+  /**
+   * Read here, during the render that draws it, rather than sampled into state beforehand — a
+   * time being held against a deadline has to be at least as new as the deadline it is
+   * measuring. This is what makes the pulse above only a pulse.
+   */
+  const nowMs = Date.now();
 
-  /** Seconds on the focused task. Derived the same way, from the same `now`. */
-  const focusElapsed = Math.floor(focusElapsedMs(state, now) / 1000);
+  const pomoNow = pomoRow ?? UNSTARTED;
+  const pomoLeftMs =
+    pomoNow.endsAt === null ? pomoNow.leftMs : Math.max(0, pomoNow.endsAt - (nowMs + skew));
+  const pomo: PomoView = {
+    phase: pomoNow.phase,
+    left: Math.ceil(pomoLeftMs / 1000),
+    running: pomoNow.endsAt !== null,
+  };
+
+  /**
+   * Seconds on the focused task, from the same reading. No `skew`: this stopwatch never leaves
+   * the browser, so both of its ends are on the one clock.
+   */
+  const focusElapsed = Math.floor(focusElapsedMs(state, nowMs) / 1000);
 
   /**
    * Ask the server to hand over once the deadline has passed here. The server checks it again
@@ -265,7 +286,10 @@ export function useToday(userId: string) {
   const askedFor = useRef<number | null>(null);
   useEffect(() => {
     const endsAt = pomoRow?.endsAt;
-    if (endsAt == null || now + skew < endsAt || askedFor.current === endsAt) return;
+    // `pulse` is in the deps as the re-check trigger; the clock is read here, for the same
+    // reason the render reads it there.
+    if (endsAt == null || Date.now() + skewRef.current < endsAt || askedFor.current === endsAt)
+      return;
     askedFor.current = endsAt;
     void advancePomo({ durations: PHASE_MS })
       .then((r) => learnSkew(r.now))
@@ -273,7 +297,7 @@ export function useToday(userId: string) {
       .catch(() => {
         askedFor.current = null;
       });
-  }, [pomoRow, now, skew, advancePomo, learnSkew]);
+  }, [pomoRow, pulse, advancePomo, learnSkew]);
 
   /**
    * Rewrites the focused task's note list in the local cache. The mutations below carry only a
