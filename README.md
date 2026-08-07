@@ -181,6 +181,13 @@ Row height is fixed so the band maths needs no DOM measurement; task text clamps
   clock and read against another, `pomodoro.sync` returns the server's time on mount and after
   every mutation, and the client holds the offset — otherwise a device whose clock is an hour
   out would draw an hour-wrong pomodoro, and be wrong silently.
+
+  Because the clock now arrives over the network, the panel is on screen before there is
+  anything true to put in it. `useQuery` has three states and the panel is given all three:
+  `undefined` is "not here yet", `null` is "here, and never started". Only the second draws a
+  full 25:00. During the first the panel shows `--:--` with no phase name, an indeterminate
+  progress bar and both controls held — a refresh that drew a confident 25:00 and then took it
+  back read as the timer having reset itself.
 - **The pomodoro pauses at every hand-over.** A phase that runs out loads the next one and its
   full length, then stops: the chime says a phase ended, and the play button says the next one
   begins. A break that starts itself counts rest nobody has taken yet, and a focus that starts

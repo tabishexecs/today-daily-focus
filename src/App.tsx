@@ -130,6 +130,7 @@ function Today({ userId }: { userId: string }) {
         phase={pomo.phase}
         left={pomo.left}
         running={pomo.running}
+        loading={pomo.loading}
         pos={state.pomodoroPos}
         sidePad={sidePad}
         onToggle={actions.pomoToggle}

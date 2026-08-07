@@ -83,9 +83,14 @@ const UNSTARTED: PomoRow = { phase: 'focus', endsAt: null, leftMs: PHASE_MS.focu
 /** What the panel is given: the row, resolved against a clock. */
 export interface PomoView {
   phase: PomoPhase;
-  /** Seconds still to go in `phase`. */
+  /** Seconds still to go in `phase`. Meaningless while `loading` — nothing is known yet. */
   left: number;
   running: boolean;
+  /**
+   * The first query result has not arrived. Every other field is a placeholder until it has,
+   * and the panel draws nothing it would have to correct.
+   */
+  loading: boolean;
 }
 
 /**
@@ -167,7 +172,16 @@ export function useToday(userId: string) {
 
   // --- The clocks ---
 
-  const pomoRow = useQuery(api.pomodoro.get) ?? null;
+  /**
+   * Three states, not two, and collapsing the first two is what made a refresh flash a full
+   * 25:00 before settling: `undefined` is "the first result has not landed", `null` is "it has,
+   * and there is no row" — a clock nobody has started. Only the second one licenses drawing
+   * `UNSTARTED`. During the first, the honest answer is that we do not know yet, and the panel
+   * is told so rather than shown a number it will have to take back.
+   */
+  const pomoQuery = useQuery(api.pomodoro.get);
+  const pomoLoading = pomoQuery === undefined;
+  const pomoRow = pomoQuery ?? null;
 
   /**
    * Server time minus this browser's, learned from any mutation's reply.
@@ -266,6 +280,7 @@ export function useToday(userId: string) {
     phase: pomoNow.phase,
     left: Math.ceil(pomoLeftMs / 1000),
     running: pomoNow.endsAt !== null,
+    loading: pomoLoading,
   };
 
   /**

@@ -8,9 +8,15 @@ import { PauseIcon, PlayFilledIcon } from './icons';
 
 interface Props {
   phase: PomoPhase;
-  /** Seconds still to go in the phase. */
+  /** Seconds still to go in the phase. Not to be drawn while `loading`. */
   left: number;
   running: boolean;
+  /**
+   * The stored clock has not arrived yet. The panel is mounted from the first paint and never
+   * unmounts, so it is on screen before there is anything true to put in it — and a refresh
+   * that drew a confident 25:00 and then took it back was worse than one that admits the wait.
+   */
+  loading: boolean;
   /** Where the panel was left, in window fractions, or null while it sits in its corner. */
   pos: PanelPos | null;
   sidePad: string;
@@ -43,6 +49,9 @@ const BAR_W = PANEL_W - PANEL_PAD_X * 2;
 
 /** How near the window's edge a dragged panel may be dropped. */
 const EDGE = 8;
+
+/** Both controls while the clock is still on its way. Faded, and past pointing at. */
+const WAITING: CSSProperties = { opacity: 0.4, cursor: 'default' };
 
 const between = (n: number, min: number, max: number) =>
   Math.min(Math.max(n, min), Math.max(min, max));
@@ -96,6 +105,7 @@ export function PomodoroPanel({
   phase,
   left,
   running,
+  loading,
   pos,
   sidePad,
   onToggle,
@@ -105,9 +115,10 @@ export function PomodoroPanel({
   const total = totalFor(phase);
   // Guarded: a phase change and this render are a tick apart at worst, and a wave longer than
   // its span would run out past the end of the box.
-  const done = Math.min(1, Math.max(0, (total - left) / total));
+  const done = loading ? 0 : Math.min(1, Math.max(0, (total - left) / total));
   // Both breaks are rest, so both recede to the same grey — the label is what tells them apart.
-  const accent = phase === 'focus' ? 'var(--primary)' : 'var(--muted)';
+  // An unknown phase is not blue either: the accent is itself a claim about which one it is.
+  const accent = !loading && phase === 'focus' ? 'var(--primary)' : 'var(--muted)';
 
   const activeW = done * SPAN;
   // Where the track is squeezed to nothing its round cap draws the dot M3 leaves as a stop
@@ -225,8 +236,12 @@ export function PomodoroPanel({
         animation: 'glassIn 260ms cubic-bezier(0.22, 1.15, 0.36, 1)',
       }}
     >
-      {/* In the colour its own progress is drawn in, so tag and wave name the phase together. */}
-      <span style={{ ...PHASE_LABEL, color: accent, display: 'block' }}>{PHASE_NAME[phase]}</span>
+      {/* In the colour its own progress is drawn in, so tag and wave name the phase together.
+          A non-breaking space while loading: naming a phase is a claim, but the line it sits on
+          still has to hold the clock where it will be. */}
+      <span style={{ ...PHASE_LABEL, color: accent, display: 'block' }}>
+        {loading ? ' ' : PHASE_NAME[phase]}
+      </span>
 
       <div
         style={{
@@ -243,7 +258,9 @@ export function PomodoroPanel({
           marginTop: 10,
         }}
       >
-        {fmt(left)}
+        {/* Placeholder rather than a number, and dashes rather than zeroes: 00:00 is a time,
+            and a finished pomodoro is exactly what it would be mistaken for. */}
+        {loading ? '--:--' : fmt(left)}
       </div>
 
       <svg
@@ -253,7 +270,9 @@ export function PomodoroPanel({
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.round(done * 100)}
+        // Left off entirely while loading: an absent `aria-valuenow` is how a progressbar says
+        // indeterminate, where a 0 would say "none of it done", which is a different claim.
+        aria-valuenow={loading ? undefined : Math.round(done * 100)}
         style={{ display: 'block', marginTop: 12 }}
       >
         {/* The group holds the cap inset, rather than every coordinate. */}
@@ -277,12 +296,21 @@ export function PomodoroPanel({
           marginTop: 16,
         }}
       >
-        <button data-secondarydangerbtn="" onClick={onReset} style={secondaryDangerBtn}>
+        {/* Both are held until the clock arrives. Not for tidiness: a press during the wait
+            reaches an optimistic update with no cached query to amend, so it changes nothing on
+            screen and lands on the server anyway — a button that looks ignored and is not. */}
+        <button
+          data-secondarydangerbtn=""
+          onClick={onReset}
+          disabled={loading}
+          style={{ ...secondaryDangerBtn, ...(loading ? WAITING : null) }}
+        >
           Reset
         </button>
         <button
           onClick={onToggle}
-          aria-label={running ? 'Pause pomodoro' : 'Start pomodoro'}
+          disabled={loading}
+          aria-label={loading ? 'Pomodoro loading' : running ? 'Pause pomodoro' : 'Start pomodoro'}
           style={{
             width: 40,
             height: 40,
@@ -295,9 +323,12 @@ export function PomodoroPanel({
             alignItems: 'center',
             justifyContent: 'center',
             boxShadow: '0 4px 12px -4px rgba(2, 73, 180, 0.55)',
+            ...(loading ? WAITING : null),
           }}
         >
-          {running ? <PauseIcon size={15} /> : <PlayFilledIcon size={15} />}
+          {/* Play, not pause, while it is unknown: one of the two has to be drawn, and the
+              panel has always come up stopped. */}
+          {running && !loading ? <PauseIcon size={15} /> : <PlayFilledIcon size={15} />}
         </button>
       </div>
     </div>
